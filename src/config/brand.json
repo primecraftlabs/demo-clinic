@@ -13,7 +13,12 @@
   "location": {
     "city": "Delhi",
     "country": "India",
-    "countryCode": "IN"
+    "countryCode": "IN",
+    "showOnSite": false
+  },
+  "pricing": {
+    "showPrices": false,
+    "amounts": {}
   },
   "tagline": "Websites, mobile apps and backends that bring your business more customers.",
   "headline": {
@@ -21,6 +26,78 @@
     "highlight": "more customers"
   },
   "services": "Websites · Mobile Apps · Backends",
+  "card": {
+    "title": "Founder",
+    "showWhatsAppNumber": true,
+    "qrLabel": "Scan to chat on WhatsApp",
+    "qrMessage": "Hi PrimeCraft Labs, I got your card and I'd like to talk about a website/app."
+  },
+  "ads": {
+    "showNumber": true,
+    "storyCompare": {
+      "question": "Customers search on Google.",
+      "highlight": "Can they find you?",
+      "search": "best salon near me",
+      "withoutTitle": "Without a website",
+      "without": [
+        "Hard to find on Google",
+        "Missed calls = missed orders",
+        "Looks less trustworthy"
+      ],
+      "withTitle": "With a PrimeCraft website",
+      "with": [
+        "Easy to find on Google",
+        "Bookings & orders 24×7",
+        "Customers trust you instantly"
+      ],
+      "ctaTitle": "Reply \"WEBSITE\"",
+      "ctaText": "to get a free sample design"
+    },
+    "storyOffer": {
+      "kicker": "Before you pay anything",
+      "big": "FREE",
+      "line": "sample design of your website",
+      "steps": [
+        {
+          "title": "Message us",
+          "text": "Tell us about your business on WhatsApp"
+        },
+        {
+          "title": "Get your free sample",
+          "text": "We design your homepage for free"
+        },
+        {
+          "title": "Like it? Go live",
+          "text": "Pay 50% to start, 50% when you're happy"
+        }
+      ],
+      "cta": "Reply to this status"
+    },
+    "socialPost": {
+      "headline": "Your business deserves",
+      "highlight": "a great website",
+      "points": [
+        "Free sample design",
+        "Works on every phone",
+        "Online booking & WhatsApp orders"
+      ],
+      "cta": "Message us on WhatsApp"
+    },
+    "whatsappStatus": {
+      "eyebrow": "For shops, clinics, salons, gyms & restaurants",
+      "headline": "Get your business",
+      "highlight": "website ready",
+      "subline": "More customers from Google and WhatsApp",
+      "points": [
+        "Looks great on every phone",
+        "Online booking & WhatsApp orders",
+        "Free sample design before you pay"
+      ],
+      "proofLabel": "Real demo websites we built",
+      "ctaTitle": "Reply to this status",
+      "ctaText": "and get a FREE sample design"
+    }
+  },
   "contact": {
     "email": "jitenderchauhan.dev2020@gmail.com",
     "phone": "+919318305944",
@@ -35,6 +112,19 @@
   },
   "customDomain": "",
   "formspreeId": "xgaaogyk",
+  "seo": {
+    "googleSiteVerification": "j1oO4aRBJ4cpI0J8QnU7Vr_eZoaFX57a2E5Kh4I7Uuk",
+    "googleVerificationFile": "google7bb60ad6a20317ab.html"
+  },
+  "social": {
+    "instagram": "",
+    "facebook": "",
+    "youtube": "",
+    "linkedin": ""
+  },
+  "analytics": {
+    "cloudflareToken": "f874b7c8392e42fe874369c23459532f"
+  },
   "theme": {
     "font": "Plus Jakarta Sans",
     "colors": {
