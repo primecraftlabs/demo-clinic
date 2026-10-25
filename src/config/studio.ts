@@ -6,6 +6,6 @@ export const studio = {
   ownerFirstName: brand.owner.firstName,
   portfolioUrl: brand.urls.portfolio,
   whatsappUrl: `${brand.whatsappUrl}?text=${encodeURIComponent(
-    `Hi ${brand.owner.firstName}, I saw the clinic booking demo by ${brand.name} and want this for my clinic.`,
+    `Hi ${brand.name}, I saw your clinic booking demo and want this for my clinic.`,
   )}`,
 };
