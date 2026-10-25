@@ -1,0 +1,75 @@
+{
+  "_generated": "Do not edit. Change jk/brand/brand.json and run: python jk/brand/sync.py",
+  "name": "PrimeCraft Labs",
+  "wordmark": {
+    "first": "Prime",
+    "second": "Craft",
+    "suffix": "LABS"
+  },
+  "owner": {
+    "name": "Jitender Kumar",
+    "firstName": "Jitender"
+  },
+  "location": {
+    "city": "Delhi",
+    "country": "India",
+    "countryCode": "IN"
+  },
+  "tagline": "Websites, mobile apps and backends that bring your business more customers.",
+  "services": "Websites · Mobile Apps · Backends",
+  "contact": {
+    "email": "jitenderchauhan.dev2020@gmail.com",
+    "phone": "+919318305944",
+    "phoneDisplay": "+91 93183 05944",
+    "whatsapp": "919318305944"
+  },
+  "github": {
+    "user": "jeetuwizard"
+  },
+  "customDomain": "",
+  "formspreeId": "",
+  "theme": {
+    "font": "Plus Jakarta Sans",
+    "colors": {
+      "ink": "#0F1E3D",
+      "navy": "#1B2D5C",
+      "steel": "#2B4588",
+      "gold": "#E9A23B",
+      "goldLight": "#F5C875",
+      "goldDark": "#C9821F",
+      "mist": "#F6F7FB",
+      "gemDarkLeft": "#5B7BD5",
+      "gemDarkMid": "#3D5BA9",
+      "gemDarkRight": "#2B4588"
+    }
+  },
+  "projects": {
+    "portfolio": {
+      "repo": "",
+      "path": "/"
+    },
+    "demoRestaurant": {
+      "repo": "demo-restaurant",
+      "path": "/demo-restaurant/"
+    },
+    "demoClinic": {
+      "repo": "demo-clinic",
+      "path": "/demo-clinic/"
+    },
+    "clientFinder": {
+      "repo": "client-finder"
+    }
+  },
+  "urls": {
+    "site": "https://jeetuwizard.github.io",
+    "github": "https://github.com/jeetuwizard",
+    "portfolio": "https://jeetuwizard.github.io/",
+    "demoRestaurant": "https://jeetuwizard.github.io/demo-restaurant/",
+    "demoRestaurantCode": "https://github.com/jeetuwizard/demo-restaurant",
+    "demoClinic": "https://jeetuwizard.github.io/demo-clinic/",
+    "demoClinicCode": "https://github.com/jeetuwizard/demo-clinic",
+    "clientFinderCode": "https://github.com/jeetuwizard/client-finder",
+    "portfolioCode": "https://github.com/jeetuwizard/jeetuwizard.github.io"
+  },
+  "whatsappUrl": "https://wa.me/919318305944"
+}

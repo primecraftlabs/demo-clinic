@@ -1,0 +1,82 @@
+@import "tailwindcss";
+
+/* Kinara Family Clinic (fictional): calm healthcare palette, light only.
+   All colours live here as tokens; components use the token classes (bg-brand, text-muted, ...). */
+:root {
+  color-scheme: light;
+  --bg: #fbfdfc;
+  --bg-alt: #f0f7f4;
+  --surface: #ffffff;
+  --fg: #12302a;
+  --muted: #4d6862;
+  --line: #d9e8e2;
+  --brand: #0b7a65;
+  --brand-strong: #075e4e;
+  --brand-soft: #e3f3ee;
+  --on-brand: #ffffff;
+  --mark-dot: #9be3cf;
+  --info-bg: #e8f3fb;
+  --info-line: #b9d9ef;
+  --info-fg: #0c4a6e;
+  --danger: #b42318;
+  --danger-bg: #fef2f2;
+  --avatar-1-bg: #d1fae5;
+  --avatar-1-fg: #065f46;
+  --avatar-2-bg: #e0f2fe;
+  --avatar-2-fg: #075985;
+  --avatar-3-bg: #ccfbf1;
+  --avatar-3-fg: #115e59;
+  --avatar-4-bg: #cffafe;
+  --avatar-4-fg: #155e75;
+}
+
+@theme inline {
+  --color-bg: var(--bg);
+  --color-bg-alt: var(--bg-alt);
+  --color-surface: var(--surface);
+  --color-fg: var(--fg);
+  --color-muted: var(--muted);
+  --color-line: var(--line);
+  --color-brand: var(--brand);
+  --color-brand-strong: var(--brand-strong);
+  --color-brand-soft: var(--brand-soft);
+  --color-on-brand: var(--on-brand);
+  --color-mark-dot: var(--mark-dot);
+  --color-info-bg: var(--info-bg);
+  --color-info-line: var(--info-line);
+  --color-info-fg: var(--info-fg);
+  --color-danger: var(--danger);
+  --color-danger-bg: var(--danger-bg);
+  --color-avatar-1-bg: var(--avatar-1-bg);
+  --color-avatar-1-fg: var(--avatar-1-fg);
+  --color-avatar-2-bg: var(--avatar-2-bg);
+  --color-avatar-2-fg: var(--avatar-2-fg);
+  --color-avatar-3-bg: var(--avatar-3-bg);
+  --color-avatar-3-fg: var(--avatar-3-fg);
+  --color-avatar-4-bg: var(--avatar-4-bg);
+  --color-avatar-4-fg: var(--avatar-4-fg);
+  --font-sans: var(--font-dm-sans);
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  background: var(--bg);
+  color: var(--fg);
+}
+
+/* Step titles sit inside their card instead of on the border */
+fieldset > legend + * {
+  clear: both;
+}
+
+:focus-visible {
+  outline: 3px solid var(--brand);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+}
