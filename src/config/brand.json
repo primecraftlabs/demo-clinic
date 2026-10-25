@@ -29,12 +29,12 @@
     "whatsapp": "919318305944"
   },
   "github": {
-    "user": "jeetuwizard",
+    "user": "primecraftlabs",
     "commitName": "Jitender",
-    "commitEmail": "346820001+jeetuwizard@users.noreply.github.com"
+    "commitEmail": "346820001+primecraftlabs@users.noreply.github.com"
   },
   "customDomain": "",
-  "formspreeId": "",
+  "formspreeId": "xgaaogyk",
   "theme": {
     "font": "Plus Jakarta Sans",
     "colors": {
@@ -68,15 +68,15 @@
     }
   },
   "urls": {
-    "site": "https://jeetuwizard.github.io",
-    "github": "https://github.com/jeetuwizard",
-    "portfolio": "https://jeetuwizard.github.io/",
-    "demoRestaurant": "https://jeetuwizard.github.io/demo-restaurant/",
-    "demoRestaurantCode": "https://github.com/jeetuwizard/demo-restaurant",
-    "demoClinic": "https://jeetuwizard.github.io/demo-clinic/",
-    "demoClinicCode": "https://github.com/jeetuwizard/demo-clinic",
-    "clientFinderCode": "https://github.com/jeetuwizard/client-finder",
-    "portfolioCode": "https://github.com/jeetuwizard/jeetuwizard.github.io"
+    "site": "https://primecraftlabs.github.io",
+    "github": "https://github.com/primecraftlabs",
+    "portfolio": "https://primecraftlabs.github.io/",
+    "demoRestaurant": "https://primecraftlabs.github.io/demo-restaurant/",
+    "demoRestaurantCode": "https://github.com/primecraftlabs/demo-restaurant",
+    "demoClinic": "https://primecraftlabs.github.io/demo-clinic/",
+    "demoClinicCode": "https://github.com/primecraftlabs/demo-clinic",
+    "clientFinderCode": "https://github.com/primecraftlabs/client-finder",
+    "portfolioCode": "https://github.com/primecraftlabs/primecraftlabs.github.io"
   },
   "whatsappUrl": "https://wa.me/919318305944"
 }
