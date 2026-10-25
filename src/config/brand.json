@@ -16,6 +16,10 @@
     "countryCode": "IN"
   },
   "tagline": "Websites, mobile apps and backends that bring your business more customers.",
+  "headline": {
+    "text": "Websites and apps that bring your business",
+    "highlight": "more customers"
+  },
   "services": "Websites · Mobile Apps · Backends",
   "contact": {
     "email": "jitenderchauhan.dev2020@gmail.com",
@@ -24,7 +28,9 @@
     "whatsapp": "919318305944"
   },
   "github": {
-    "user": "jeetuwizard"
+    "user": "jeetuwizard",
+    "commitName": "Jitender",
+    "commitEmail": "346820001+jeetuwizard@users.noreply.github.com"
   },
   "customDomain": "",
   "formspreeId": "",
