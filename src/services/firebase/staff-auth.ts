@@ -1,9 +1,9 @@
-// StaffAuth on Firebase Authentication (email + password). A user is staff only if staff/{uid} exists,
-// which the owner adds in the Firebase console (see PROJECT.md).
-import { onAuthStateChanged, signInWithEmailAndPassword, signOut } from "firebase/auth";
+// StaffAuth on Firebase Authentication (email + password). The role comes from staff/{uid}:
+// "owner" (clinic admin, added in the Firebase console) or "doctor" (invited from the dashboard).
+import { onAuthStateChanged, sendPasswordResetEmail, signInWithEmailAndPassword, signOut } from "firebase/auth";
 import { doc, getDoc } from "firebase/firestore";
 import { collections } from "@/config/firebase";
-import { SignInError, type StaffAuth } from "../types";
+import { SignInError, type Role, type StaffAuth } from "../types";
 import { auth, db } from "./app";
 
 export function firebaseStaffAuth(): StaffAuth {
@@ -12,13 +12,18 @@ export function firebaseStaffAuth(): StaffAuth {
     watch(onChange) {
       return onAuthStateChanged(a, async (user) => {
         if (!user) return onChange(null);
-        let isStaff = false;
+        let role: Role | null = null;
+        let doctorId: string | undefined;
         try {
-          isStaff = (await getDoc(doc(db(), collections.staff, user.uid))).exists();
+          const snap = await getDoc(doc(db(), collections.staff, user.uid));
+          if (snap.exists()) {
+            role = snap.data().role === "owner" ? "owner" : snap.data().role === "doctor" ? "doctor" : null;
+            doctorId = snap.data().doctorId;
+          }
         } catch {
-          isStaff = false;
+          role = null;
         }
-        onChange({ email: user.email ?? "", isStaff });
+        onChange({ uid: user.uid, email: user.email ?? "", role, doctorId });
       });
     },
     async signIn(email, password) {
@@ -32,5 +37,8 @@ export function firebaseStaffAuth(): StaffAuth {
       }
     },
     signOut: () => signOut(a),
+    async sendPasswordReset(email) {
+      await sendPasswordResetEmail(a, email.trim());
+    },
   };
 }

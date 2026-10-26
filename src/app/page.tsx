@@ -1,9 +1,9 @@
 import Link from "next/link";
 import { Icon } from "@/components/Icons";
 import { Photo } from "@/components/Photo";
-import { ButtonLink, Container, DoctorAvatar, SectionTitle, workingDays } from "@/components/ui";
+import { DoctorPreview } from "@/components/DoctorCards";
+import { ButtonLink, Container, SectionTitle } from "@/components/ui";
 import { about, clinic, faqs, gallery, howItWorks, reasons, services } from "@/config/clinic";
-import { doctors } from "@/data/doctors";
 
 export default function Home() {
   return (
@@ -142,19 +142,7 @@ export default function Home() {
               All doctors <Icon name="arrow" className="size-4" />
             </Link>
           </div>
-          <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
-            {doctors.map((d, i) => (
-              <div key={d.id} className="flex flex-col rounded-2xl border border-line bg-surface p-6">
-                <DoctorAvatar doctor={d} index={i} />
-                <h3 className="mt-4 font-semibold">{d.name}</h3>
-                <p className="text-sm text-brand">{d.speciality}</p>
-                <p className="mt-2 flex-1 text-sm text-muted">{workingDays(d)}</p>
-                <Link href={`/book/?doctor=${d.id}`} className="mt-4 text-sm font-semibold text-brand hover:underline">
-                  Book with {d.name} →
-                </Link>
-              </div>
-            ))}
-          </div>
+          <DoctorPreview />
         </Container>
       </section>
 

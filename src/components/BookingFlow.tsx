@@ -3,7 +3,6 @@
 import { useSearchParams } from "next/navigation";
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { bookingRules, calendar, clinic, concept } from "@/config/clinic";
-import { doctors, getDoctor } from "@/data/doctors";
 import {
   type Booking,
   type BookingErrors,
@@ -11,16 +10,18 @@ import {
   dateKey,
   formatDate,
   formatTime,
+  isBookable,
   makeBookingCode,
   nextDays,
   normalizePhone,
+  onLeave,
   validateBooking,
-  worksOn,
+  type Doctor,
 } from "@/lib/booking";
 import { googleCalendarUrl, icsFile, type CalendarEvent } from "@/lib/calendar";
 import { bookingWhatsappText } from "@/lib/messages";
-import { type BookingStore, SlotTakenError, liveBookingStore, notifier, onlineBookingAvailable } from "@/services";
-import { useNow } from "./hooks";
+import { SlotTakenError, bookingStore, notifier, onlineBookingAvailable } from "@/services";
+import { useNow, usePublishedDoctors } from "./hooks";
 import { Icon } from "./Icons";
 import { DoctorAvatar, Notice, hoursLabel } from "./ui";
 
@@ -57,10 +58,12 @@ export function BookingFlow() {
 function BookingForm() {
   const searchParams = useSearchParams();
   const now = useNow();
-  const storeRef = useRef<Promise<BookingStore> | null>(null);
-  const getStore = () => (storeRef.current ??= liveBookingStore());
+  const { doctors, failed } = usePublishedDoctors();
+  const list = doctors ?? [];
+  const getDoctor = (id: string) => list.find((d) => d.id === id);
+  const getStore = bookingStore;
 
-  const [doctorId, setDoctorId] = useState(() => getDoctor(searchParams.get("doctor"))?.id ?? "");
+  const [doctorId, setDoctorId] = useState(() => searchParams.get("doctor") ?? "");
   const [date, setDate] = useState("");
   const [time, setTime] = useState("");
   const [name, setName] = useState("");
@@ -93,7 +96,7 @@ function BookingForm() {
   function chooseDoctor(id: string) {
     setDoctorId(id);
     const next = getDoctor(id);
-    const keepDate = next && date && worksOn(next, new Date(`${date}T00:00`)) ? date : "";
+    const keepDate = next && date && isBookable(next, new Date(`${date}T00:00`)) ? date : "";
     setDate(keepDate);
     setTime("");
     void loadTaken(id, keepDate);
@@ -146,7 +149,11 @@ function BookingForm() {
     setTaken(null);
   }
 
-  if (confirmed) return <Confirmation booking={confirmed} onBookAnother={bookAnother} />;
+  const confirmedDoctor = confirmed && getDoctor(confirmed.doctorId);
+  if (confirmed && confirmedDoctor) return <Confirmation booking={confirmed} doctor={confirmedDoctor} onBookAnother={bookAnother} />;
+  if (doctors && doctors.length === 0) {
+    return <Notice>{failed ? "We couldn't load our doctors. Please check your connection and refresh." : "Online booking opens soon. Please message us on WhatsApp to book."}</Notice>;
+  }
 
   const errorList = Object.values(errors).filter(Boolean);
 
@@ -173,8 +180,9 @@ function BookingForm() {
 
         <fieldset className="rounded-2xl border border-line bg-surface p-5 sm:p-6" aria-describedby={errors.doctor ? "err-doctor" : undefined}>
           <StepTitle n={1}>Choose a doctor</StepTitle>
+          {!doctors && <p className="text-sm text-muted">Loading doctors…</p>}
           <div className="grid gap-3 sm:grid-cols-2">
-            {doctors.map((d, i) => (
+            {list.map((d, i) => (
               <div key={d.id}>
                 <input
                   type="radio"
@@ -215,7 +223,8 @@ function BookingForm() {
             <div className="grid grid-cols-3 gap-2 sm:grid-cols-4 lg:grid-cols-7">
               {days.map((day) => {
                 const key = dateKey(day);
-                const available = worksOn(doctor, day);
+                const available = isBookable(doctor, day);
+                const leave = onLeave(doctor, key);
                 return (
                   <div key={key}>
                     <input
@@ -234,7 +243,8 @@ function BookingForm() {
                       </span>
                       <span className="block text-lg leading-tight font-bold">{day.getDate()}</span>
                       <span className="block text-xs opacity-80">{day.toLocaleDateString("en-IN", { month: "short" })}</span>
-                      {!available && <span className="sr-only"> (doctor not available)</span>}
+                      {leave && <span className="block text-[10px] font-semibold uppercase">Leave</span>}
+                      {!available && <span className="sr-only"> ({leave ? "doctor on leave" : "doctor not available"})</span>}
                     </label>
                   </div>
                 );
@@ -374,9 +384,8 @@ function BookingForm() {
   );
 }
 
-function Confirmation({ booking, onBookAnother }: { booking: Booking; onBookAnother: () => void }) {
+function Confirmation({ booking, doctor: d, onBookAnother }: { booking: Booking; doctor: Doctor; onBookAnother: () => void }) {
   const titleRef = useRef<HTMLHeadingElement>(null);
-  const d = getDoctor(booking.doctorId)!;
   useEffect(() => titleRef.current?.focus(), []);
 
   const event: CalendarEvent = {

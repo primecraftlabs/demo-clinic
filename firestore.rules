@@ -1,24 +1,23 @@
 rules_version = '2';
 
-// Kinara Family Clinic booking rules. Shapes match src/lib/records.ts; tested in tests/rules.test.ts.
+// Kinara Family Clinic rules. Shapes match src/lib/records.ts and src/lib/doctors.ts; tested in tests/rules.test.ts.
+//  - staff/{uid}:          who may sign in to the dashboard. role 'owner' = clinic admin (added in the Firebase
+//                          console), role 'doctor' + doctorId = a doctor (added by the admin from the dashboard)
+//  - doctors/{doctorId}:   public profile + schedule; visible to everyone only when active
 //  - slots/{slotId}:       public "taken" markers (doctor, date, time only), so patients see free times
-//  - bookings/{bookingId}: patient details, readable only by staff
-//  - staff/{uid}:          who is staff; added by the owner in the Firebase console, never from the site
+//  - bookings/{bookingId}: patient details: the admin sees all, a doctor only their own
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    function isStaff() {
-      return request.auth != null
-        && exists(/databases/$(database)/documents/staff/$(request.auth.uid));
-    }
+    function staffDoc(uid) { return /databases/$(database)/documents/staff/$(uid); }
+    function doctorDoc(id) { return /databases/$(database)/documents/doctors/$(id); }
+    function slotDoc(id) { return /databases/$(database)/documents/slots/$(id); }
+    function bookingDoc(id) { return /databases/$(database)/documents/bookings/$(id); }
 
-    function slotDoc(id) {
-      return /databases/$(database)/documents/slots/$(id);
-    }
-
-    function bookingDoc(id) {
-      return /databases/$(database)/documents/bookings/$(id);
-    }
+    function isMember() { return request.auth != null && exists(staffDoc(request.auth.uid)); }
+    function me() { return get(staffDoc(request.auth.uid)).data; }
+    function isAdmin() { return isMember() && me().role == 'owner'; }
+    function isDoctor(id) { return isMember() && me().role == 'doctor' && me().doctorId == id; }
 
     function validWhen(d) {
       return d.doctorId is string && d.doctorId.matches('^[a-z][a-z-]{1,39}$')
@@ -30,9 +29,49 @@ service cloud.firestore {
       return d.doctorId + '_' + d.date + '_' + d.time.replace(':', '');
     }
 
+    function validDoctor(d) {
+      return d.keys().hasOnly(['name', 'initials', 'speciality', 'about', 'experience', 'languages', 'leave', 'avatar',
+                               'days', 'start', 'end', 'slotMinutes', 'active', 'order'])
+        && d.keys().hasAll(['name', 'initials', 'speciality', 'about', 'experience', 'languages', 'leave', 'avatar',
+                            'days', 'start', 'end', 'slotMinutes', 'active', 'order'])
+        && d.name is string && d.name.size() >= 3 && d.name.size() <= 60
+        && d.initials is string && d.initials.size() >= 1 && d.initials.size() <= 3
+        && d.speciality is string && d.speciality.size() >= 1 && d.speciality.size() <= 60
+        && d.about is string && d.about.size() <= 400
+        && d.experience is int && d.experience >= 0 && d.experience <= 60
+        && d.languages is list && d.languages.size() <= 6
+        && d.leave is list && d.leave.size() <= 60
+        && d.avatar is string && d.avatar.matches('^[a-z0-9-]{0,60}$')
+        && d.days is list && d.days.size() >= 1 && d.days.size() <= 7
+        && d.start is string && d.start.matches('^[0-2][0-9]:[0-5][0-9]$')
+        && d.end is string && d.end.matches('^[0-2][0-9]:[0-5][0-9]$') && d.start < d.end
+        && d.slotMinutes in [10, 15, 20, 30, 45, 60]
+        && d.active is bool
+        && d.order is int;
+    }
+
     match /staff/{uid} {
-      allow read: if request.auth != null && request.auth.uid == uid;
-      allow write: if false;
+      allow read: if request.auth != null && (request.auth.uid == uid || isAdmin());
+      // The admin can add doctors (never another owner). Owners are added only in the Firebase console.
+      allow create: if isAdmin()
+        && request.resource.data.keys().hasOnly(['role', 'doctorId', 'email'])
+        && request.resource.data.role == 'doctor'
+        && request.resource.data.doctorId is string
+        && exists(doctorDoc(request.resource.data.doctorId))
+        && request.resource.data.email is string && request.resource.data.email.size() <= 120;
+      allow delete: if isAdmin() && resource.data.role == 'doctor';
+      allow update: if false;
+    }
+
+    match /doctors/{doctorId} {
+      allow read: if resource.data.active == true || isAdmin() || isDoctor(doctorId);
+      allow create: if isAdmin() && doctorId.matches('^[a-z][a-z-]{1,39}$') && validDoctor(request.resource.data);
+      // Doctors edit their own profile and leave days; schedule, publishing and order stay with the admin.
+      allow update: if validDoctor(request.resource.data) && (
+        isAdmin()
+        || (isDoctor(doctorId) && request.resource.data.diff(resource.data).affectedKeys()
+              .hasOnly(['name', 'initials', 'speciality', 'about', 'experience', 'languages', 'leave', 'avatar'])));
+      allow delete: if isAdmin();
     }
 
     match /slots/{slotId} {
@@ -44,8 +83,8 @@ service cloud.firestore {
         && request.resource.data.bookingId is string
         && existsAfter(bookingDoc(request.resource.data.bookingId))
         && getAfter(bookingDoc(request.resource.data.bookingId)).data.slotId == slotId;
-      // Staff free a slot when they cancel its booking.
-      allow delete: if isStaff();
+      // Freed when the booking is cancelled (by the admin or that booking's doctor) or cleaned up.
+      allow delete: if isAdmin() || isDoctor(resource.data.doctorId);
       allow update: if false;
     }
 
@@ -62,14 +101,18 @@ service cloud.firestore {
         && request.resource.data.reason is string && request.resource.data.reason.size() <= 200
         && request.resource.data.status == 'booked'
         && request.resource.data.createdAt == request.time
+        // only a published doctor, and not on one of their leave days
+        && get(doctorDoc(request.resource.data.doctorId)).data.active == true
+        && !(request.resource.data.date in get(doctorDoc(request.resource.data.doctorId)).data.leave)
         // the slot must be free now and claimed for this booking in the same batch
         && !exists(slotDoc(request.resource.data.slotId))
         && existsAfter(slotDoc(request.resource.data.slotId))
         && getAfter(slotDoc(request.resource.data.slotId)).data.bookingId == bookingId;
-      allow read, delete: if isStaff();
-      allow update: if isStaff()
+      allow read: if isAdmin() || isDoctor(resource.data.doctorId);
+      allow update: if (isAdmin() || isDoctor(resource.data.doctorId))
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status'])
         && request.resource.data.status in ['booked', 'completed', 'cancelled'];
+      allow delete: if isAdmin();
     }
   }
 }

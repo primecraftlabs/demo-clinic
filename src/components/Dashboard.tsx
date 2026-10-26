@@ -3,9 +3,8 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { retentionDays } from "@/config/clinic";
-import { doctors, getDoctor } from "@/data/doctors";
-import { type Booking, type BookingStatus, addDays, dateKey, formatDate, formatTime, sortBookings } from "@/lib/booking";
-import type { BookingStore } from "@/services";
+import { type Booking, type BookingStatus, type Doctor, addDays, dateKey, formatDate, formatTime, sortBookings } from "@/lib/booking";
+import type { BookingScope, BookingStore } from "@/services";
 import { useNow } from "./hooks";
 import { DoctorAvatar } from "./ui";
 
@@ -15,9 +14,9 @@ const statusStyles: Record<BookingStatus, string> = {
   cancelled: "bg-bg-alt text-muted line-through",
 };
 
-function BookingRow({ booking, onStatus }: { booking: Booking; onStatus: (b: Booking, status: BookingStatus) => void }) {
-  const doctor = getDoctor(booking.doctorId);
+function BookingRow({ booking, doctors, onStatus }: { booking: Booking; doctors: Doctor[]; onStatus: (b: Booking, status: BookingStatus) => void }) {
   const index = doctors.findIndex((d) => d.id === booking.doctorId);
+  const doctor = doctors[index];
   return (
     <li className="flex flex-col gap-4 rounded-2xl border border-line bg-surface p-4 sm:flex-row sm:items-center">
       <div className="w-24 shrink-0">
@@ -67,7 +66,7 @@ function BookingRow({ booking, onStatus }: { booking: Booking; onStatus: (b: Boo
   );
 }
 
-function Group({ title, items, onStatus }: { title: string; items: Booking[]; onStatus: (b: Booking, s: BookingStatus) => void }) {
+function Group({ title, items, doctors, onStatus }: { title: string; items: Booking[]; doctors: Doctor[]; onStatus: (b: Booking, s: BookingStatus) => void }) {
   const id = `group-${title.toLowerCase()}`;
   return (
     <section aria-labelledby={id}>
@@ -79,7 +78,7 @@ function Group({ title, items, onStatus }: { title: string; items: Booking[]; on
       ) : (
         <ul className="space-y-3">
           {items.map((b) => (
-            <BookingRow key={b.id} booking={b} onStatus={onStatus} />
+            <BookingRow key={b.id} booking={b} doctors={doctors} onStatus={onStatus} />
           ))}
         </ul>
       )}
@@ -87,14 +86,29 @@ function Group({ title, items, onStatus }: { title: string; items: Booking[]; on
   );
 }
 
-/** The clinic's appointment list. Works with any BookingStore (live database or sample preview). */
-export function Dashboard({ store, cleanUp = false }: { store: BookingStore; cleanUp?: boolean }) {
+/** Appointment list. Works with any BookingStore (live database or sample preview) and any scope
+ *  (the admin sees everyone's, a doctor only their own). */
+export function Dashboard({
+  store,
+  scope,
+  doctors,
+  cleanUp = false,
+}: {
+  store: BookingStore;
+  scope: BookingScope;
+  doctors: Doctor[];
+  cleanUp?: boolean;
+}) {
   const now = useNow();
   const [bookings, setBookings] = useState<Booking[] | null>(null);
   const [doctorFilter, setDoctorFilter] = useState("all");
   const [message, setMessage] = useState("");
 
-  useEffect(() => store.watch(setBookings, () => setMessage("Couldn't load bookings. Check your connection and reload.")), [store]);
+  const scopeDoctor = scope.doctorId;
+  useEffect(
+    () => store.watch({ doctorId: scopeDoctor }, setBookings, () => setMessage("Couldn't load bookings. Check your connection and reload.")),
+    [store, scopeDoctor],
+  );
 
   // Keep patient data short-lived: remove bookings older than the retention period (live dashboard only).
   useEffect(() => {
@@ -136,6 +150,7 @@ export function Dashboard({ store, cleanUp = false }: { store: BookingStore; cle
         ))}
       </div>
 
+      {!scopeDoctor && (
       <div className="rounded-2xl border border-line bg-surface p-4">
         <label htmlFor="doctor-filter" className="mb-1.5 block text-sm font-semibold">
           Filter by doctor
@@ -154,6 +169,7 @@ export function Dashboard({ store, cleanUp = false }: { store: BookingStore; cle
           ))}
         </select>
       </div>
+      )}
 
       <p aria-live="polite" className="min-h-6 text-sm font-medium text-brand">
         {message}
@@ -169,9 +185,11 @@ export function Dashboard({ store, cleanUp = false }: { store: BookingStore; cle
         </div>
       ) : (
         <div className="space-y-10">
-          <Group title="Today" items={visible.filter((b) => b.date === today)} onStatus={setStatus} />
-          <Group title="Upcoming" items={visible.filter((b) => b.date > today)} onStatus={setStatus} />
-          {visible.some((b) => b.date < today) && <Group title="Earlier" items={visible.filter((b) => b.date < today)} onStatus={setStatus} />}
+          <Group title="Today" items={visible.filter((b) => b.date === today)} doctors={doctors} onStatus={setStatus} />
+          <Group title="Upcoming" items={visible.filter((b) => b.date > today)} doctors={doctors} onStatus={setStatus} />
+          {visible.some((b) => b.date < today) && (
+            <Group title="Earlier" items={visible.filter((b) => b.date < today)} doctors={doctors} onStatus={setStatus} />
+          )}
         </div>
       )}
     </div>

@@ -15,6 +15,7 @@ import {
   validateBooking,
 } from "../src/lib/booking.ts";
 import { bookingRecords, slotId } from "../src/lib/records.ts";
+import { cleanLeave, doctorIdFromName, initialsOf, newDoctor, parseLanguages, validateProfile, validateSchedule } from "../src/lib/doctors.ts";
 import { googleCalendarUrl, icsFile } from "../src/lib/calendar.ts";
 
 const doctor: Doctor = {
@@ -28,6 +29,11 @@ const doctor: Doctor = {
   end: "11:00",
   slotMinutes: 20,
   about: "",
+  languages: [],
+  leave: ["2026-10-28"],
+  avatar: "",
+  active: true,
+  order: 0,
 };
 
 const rules: BookingRules = { daysAhead: 7, codePrefix: "KFC", maxNameLength: 60, maxReasonLength: 200 };
@@ -109,4 +115,39 @@ test("calendar links use the clinic's time zone and the slot length", () => {
   const ics = icsFile(event, new Date(Date.UTC(2026, 9, 26)));
   assert.match(ics, /DTSTART;TZID=Asia\/Kolkata:20261027T235000/);
   assert.ok(ics.includes("DESCRIPTION:Code\\, ok\\; bring reports"), "commas and semicolons are escaped");
+});
+
+test("leave days can't be booked", () => {
+  assert.deepEqual(availableSlots(doctor, "2026-10-28", [], now), []); // Wednesday, on leave
+  const errors = validateBooking({ doctor, date: "2026-10-28", time: "10:00", name: "Riya", phone: "9876543210", reason: "" }, [], now, rules);
+  assert.match(errors.date ?? "", /leave/);
+});
+
+test("doctor ids, initials and languages from what the admin types", () => {
+  assert.equal(doctorIdFromName("Dr. Priya Nair"), "priya-nair");
+  assert.equal(doctorIdFromName("  Dr Ravi  K. Singh "), "ravi-k-singh");
+  assert.equal(initialsOf("Dr. Priya Nair"), "PN");
+  assert.equal(initialsOf("Madhu"), "MA");
+  assert.deepEqual(parseLanguages("Hindi, English,  ,hindi, Hindi"), ["Hindi", "English", "hindi"]);
+});
+
+test("a new doctor starts hidden, with their own avatar and a valid schedule", () => {
+  const d = newDoctor("Dr. Priya Nair", "ENT Specialist", 4);
+  assert.equal(d.active, false);
+  assert.equal(d.avatar, "priya-nair");
+  assert.deepEqual(validateSchedule(d), {});
+  assert.deepEqual(validateProfile(d), {});
+});
+
+test("profile and schedule checks", () => {
+  const d = newDoctor("Dr. Priya Nair", "ENT", 0);
+  assert.ok(validateProfile({ ...d, name: "Al" }).name);
+  assert.ok(validateProfile({ ...d, experience: 70 }).experience);
+  assert.ok(validateSchedule({ ...d, days: [] }).days);
+  assert.ok(validateSchedule({ ...d, start: "14:00", end: "13:00" }).hours);
+  assert.ok(validateSchedule({ ...d, slotMinutes: 25 }).slotMinutes);
+});
+
+test("leave list stays sorted, unique and future-only", () => {
+  assert.deepEqual(cleanLeave(["2026-11-05", "2026-10-01", "2026-11-02", "2026-11-05", "bad"], "2026-10-27"), ["2026-11-02", "2026-11-05"]);
 });

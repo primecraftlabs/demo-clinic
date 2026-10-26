@@ -58,9 +58,11 @@ export function firebaseBookingStore(): BookingStore {
       return { id: bookingRef.id, ...booking };
     },
 
-    watch(onChange, onError) {
+    watch(scope, onChange, onError) {
+      // A doctor may only list their own bookings (the rules require this filter).
+      const q = scope.doctorId ? query(bookingsRef, where("doctorId", "==", scope.doctorId)) : bookingsRef;
       return onSnapshot(
-        bookingsRef,
+        q,
         (snap) => onChange(snap.docs.map((d) => toBooking(d.id, d.data()))),
         (error) => onError(error),
       );

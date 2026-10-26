@@ -1,9 +1,11 @@
+import Image from "next/image";
 import Link from "next/link";
 import type { ReactNode } from "react";
 import type { Doctor } from "@/lib/booking";
 import { DAY_NAMES, formatTime } from "@/lib/booking";
 import { Icon } from "./Icons";
 import { Photo } from "./Photo";
+import { avatarDataUri } from "./avatar";
 
 export function Container({ children, className = "" }: { children: ReactNode; className?: string }) {
   return <div className={`mx-auto w-full max-w-6xl px-4 sm:px-6 ${className}`}>{children}</div>;
@@ -52,10 +54,14 @@ const avatarColors = [
   "bg-avatar-4-bg text-avatar-4-fg",
 ];
 
+/** The doctor's chosen avatar (or initials) on a soft colour. Decorative: the name is always shown next to it. */
 export function DoctorAvatar({ doctor, index = 0, size = "size-14 text-lg" }: { doctor: Doctor; index?: number; size?: string }) {
   return (
-    <span aria-hidden="true" className={`grid shrink-0 place-items-center rounded-full font-bold ${size} ${avatarColors[index % avatarColors.length]}`}>
-      {doctor.initials}
+    <span
+      aria-hidden="true"
+      className={`relative grid shrink-0 place-items-center overflow-hidden rounded-full font-bold ${size} ${avatarColors[index % avatarColors.length]}`}
+    >
+      {doctor.avatar ? <Image src={avatarDataUri(doctor.avatar)} alt="" fill sizes="96px" unoptimized className="object-cover" /> : doctor.initials}
     </span>
   );
 }

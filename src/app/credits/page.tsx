@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Photo } from "@/components/Photo";
+import { avatarCredit } from "@/config/avatars";
 import { allPhotos, unsplashUrl } from "@/config/photos";
 import { gallery, photoLabels } from "@/config/clinic";
 
@@ -19,6 +20,11 @@ export default function CreditsPage() {
           Unsplash
         </a>
         . Thank you to the photographers below.
+      </p>
+      <p className="mt-2 max-w-2xl text-muted">
+        <a href={avatarCredit.url} className="underline underline-offset-2 hover:text-fg">
+          {avatarCredit.text}
+        </a>
       </p>
       <ul className="mt-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {allPhotos.map(([slot, p]) => (

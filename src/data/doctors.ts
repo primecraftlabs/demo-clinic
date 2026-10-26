@@ -1,7 +1,9 @@
-// Fictional doctors. days: 0 = Sunday ... 6 = Saturday; times are 24h "HH:MM".
+// Starter doctors for the concept clinic. The admin imports them into the database once
+// (Dashboard -> Doctors -> "Add the starter doctors"); after that the database is the source of truth.
+// days: 0 = Sunday ... 6 = Saturday; times are 24h "HH:MM".
 import type { Doctor } from "@/lib/booking";
 
-export const doctors: Doctor[] = [
+export const starterDoctors: Doctor[] = [
   {
     id: "ananya-mehra",
     name: "Dr. Ananya Mehra",
@@ -13,6 +15,11 @@ export const doctors: Doctor[] = [
     end: "13:00",
     slotMinutes: 20,
     about: "Everyday illnesses, fevers, follow-ups and routine check-ups for the whole family.",
+    languages: ["Hindi", "English"],
+    leave: [],
+    avatar: "ananya-mehra",
+    active: true,
+    order: 0,
   },
   {
     id: "rohan-kapoor",
@@ -25,6 +32,11 @@ export const doctors: Doctor[] = [
     end: "19:00",
     slotMinutes: 20,
     about: "Care for babies and children, growth check-ups and vaccination schedules.",
+    languages: ["Hindi", "English", "Punjabi"],
+    leave: [],
+    avatar: "rohan-kapoor",
+    active: true,
+    order: 1,
   },
   {
     id: "sana-qureshi",
@@ -37,6 +49,11 @@ export const doctors: Doctor[] = [
     end: "14:00",
     slotMinutes: 30,
     about: "Skin, hair and nail concerns, with clear explanations and follow-up plans.",
+    languages: ["Hindi", "English", "Urdu"],
+    leave: [],
+    avatar: "sana-qureshi",
+    active: true,
+    order: 2,
   },
   {
     id: "vikram-sethi",
@@ -49,9 +66,10 @@ export const doctors: Doctor[] = [
     end: "20:00",
     slotMinutes: 30,
     about: "Dental check-ups, cleaning and treatment planning in a calm, gentle setting.",
+    languages: ["Hindi", "English"],
+    leave: [],
+    avatar: "vikram-sethi",
+    active: true,
+    order: 3,
   },
 ];
-
-export function getDoctor(id: string | null | undefined) {
-  return doctors.find((d) => d.id === id);
-}

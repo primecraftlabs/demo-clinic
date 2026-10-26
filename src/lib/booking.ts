@@ -13,6 +13,15 @@ export type Doctor = {
   end: string;
   slotMinutes: number;
   about: string;
+  languages: string[];
+  /** Dates the doctor is away (YYYY-MM-DD); patients can't book them. */
+  leave: string[];
+  /** Chosen illustrated avatar (a seed, see src/components/avatar.ts), or "" to show initials. */
+  avatar: string;
+  /** Shown on the website and bookable. */
+  active: boolean;
+  /** Position in lists (small first). */
+  order: number;
 };
 
 export type BookingStatus = "booked" | "completed" | "cancelled";
@@ -69,6 +78,15 @@ export function worksOn(doctor: Doctor, day: Date): boolean {
   return doctor.days.includes(day.getDay());
 }
 
+export function onLeave(doctor: Doctor, date: string): boolean {
+  return doctor.leave.includes(date);
+}
+
+/** Bookable = a working weekday and not a leave day. */
+export function isBookable(doctor: Doctor, day: Date): boolean {
+  return worksOn(doctor, day) && !onLeave(doctor, dateKey(day));
+}
+
 export function toMinutes(time: string): number {
   const [h, m] = time.split(":").map(Number);
   return h * 60 + m;
@@ -97,7 +115,7 @@ export function slotState(date: string, time: string, taken: readonly string[], 
 }
 
 export function availableSlots(doctor: Doctor, date: string, taken: readonly string[], now: Date) {
-  if (!worksOn(doctor, parseDateKey(date))) return [];
+  if (!isBookable(doctor, parseDateKey(date))) return [];
   return slotTimes(doctor).map((time) => ({ time, state: slotState(date, time, taken, now) }));
 }
 
@@ -129,6 +147,7 @@ export function validateBooking(input: BookingInput, taken: readonly string[], n
   else {
     const allowed = nextDays(now, rules.daysAhead).map(dateKey);
     if (!allowed.includes(date)) errors.date = `Please choose a date within the next ${rules.daysAhead} days.`;
+    else if (doctor && onLeave(doctor, date)) errors.date = `${doctor.name} is on leave on this day.`;
     else if (doctor && !worksOn(doctor, parseDateKey(date))) errors.date = `${doctor.name} is not available on this day.`;
   }
   if (!time) errors.time = "Please choose a time slot.";

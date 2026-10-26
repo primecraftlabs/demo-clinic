@@ -1,6 +1,6 @@
 // BookingStore kept in memory with sample patients: the dashboard preview for visitors, no database involved.
 import { bookingRules } from "@/config/clinic";
-import { doctors } from "@/data/doctors";
+import { starterDoctors as doctors } from "@/data/doctors";
 import { samplePatients, samplePhone } from "@/data/samples";
 import { type Booking, dateKey, makeBookingCode, nextDays, slotTimes, worksOn } from "@/lib/booking";
 import type { BookingStore } from "../types";
@@ -46,10 +46,11 @@ export function sampleBookingStore(now: Date): BookingStore {
       emit();
       return booking;
     },
-    watch(onChange) {
-      listeners.add(onChange);
-      onChange(bookings);
-      return () => listeners.delete(onChange);
+    watch(scope, onChange) {
+      const listener = (all: Booking[]) => onChange(scope.doctorId ? all.filter((b) => b.doctorId === scope.doctorId) : all);
+      listeners.add(listener);
+      listener(bookings);
+      return () => listeners.delete(listener);
     },
     async setStatus(booking, status) {
       bookings = bookings.map((b) => (b.id === booking.id ? { ...b, status } : b));
