@@ -117,13 +117,15 @@
     "googleVerificationFile": "google7bb60ad6a20317ab.html"
   },
   "social": {
+    "googleBusiness": "https://share.google/gCbBfJusULw0CY4At",
     "instagram": "",
     "facebook": "",
     "youtube": "",
     "linkedin": ""
   },
   "analytics": {
-    "cloudflareToken": "f874b7c8392e42fe874369c23459532f"
+    "cloudflareToken": "f874b7c8392e42fe874369c23459532f",
+    "googleTagId": "G-PJGP4KB4FQ"
   },
   "theme": {
     "font": "Plus Jakarta Sans",
