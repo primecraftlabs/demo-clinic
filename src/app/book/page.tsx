@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { pageBanners } from "@/config/clinic";
 import { Suspense } from "react";
 import { BookingFlow } from "@/components/BookingFlow";
 import { Container, PageIntro } from "@/components/ui";
@@ -12,6 +13,7 @@ export default function BookPage() {
   return (
     <>
       <PageIntro
+        photo={pageBanners.book}
         eyebrow="Online booking"
         title="Book an appointment"
         lead="Three quick steps: choose a doctor, pick a day and time, and enter the patient's details."

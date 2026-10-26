@@ -2,6 +2,8 @@ import Link from "next/link";
 import type { ReactNode } from "react";
 import type { Doctor } from "@/lib/booking";
 import { DAY_NAMES, formatTime } from "@/lib/booking";
+import { Icon } from "./Icons";
+import { Photo } from "./Photo";
 
 export function Container({ children, className = "" }: { children: ReactNode; className?: string }) {
   return <div className={`mx-auto w-full max-w-6xl px-4 sm:px-6 ${className}`}>{children}</div>;
@@ -67,24 +69,39 @@ export function hoursLabel(doctor: Doctor): string {
   return `${formatTime(doctor.start)} – ${formatTime(doctor.end)}`;
 }
 
-export function PageIntro({ eyebrow, title, lead }: { eyebrow: string; title: string; lead: string }) {
+/** Page heading band. With `photo` (a slot in photos.json) it becomes a photo banner, like the home page. */
+export function PageIntro({ eyebrow, title, lead, photo }: { eyebrow: string; title: string; lead: string; photo?: string }) {
+  if (!photo) {
+    return (
+      <section className="border-b border-line bg-bg-alt">
+        <Container className="py-12 sm:py-16">
+          <p className="mb-2 text-sm font-semibold tracking-wide text-brand uppercase">{eyebrow}</p>
+          <h1 className="text-3xl font-bold tracking-tight text-balance sm:text-4xl">{title}</h1>
+          <p className="mt-3 max-w-2xl text-lg text-muted">{lead}</p>
+        </Container>
+      </section>
+    );
+  }
   return (
-    <section className="border-b border-line bg-bg-alt">
-      <Container className="py-12 sm:py-16">
-        <p className="mb-2 text-sm font-semibold tracking-wide text-brand uppercase">{eyebrow}</p>
+    <section className="relative isolate overflow-hidden bg-brand-strong text-on-brand">
+      <Photo slot={photo} width={1600} height={600} preload className="-z-10" />
+      <div aria-hidden="true" className="absolute inset-0 -z-10 bg-linear-to-r from-brand-strong via-brand-strong/85 to-brand-strong/40" />
+      <Container className="py-14 sm:py-20">
+        <p className="mb-2 text-sm font-semibold tracking-wide text-on-brand/80 uppercase">{eyebrow}</p>
         <h1 className="text-3xl font-bold tracking-tight text-balance sm:text-4xl">{title}</h1>
-        <p className="mt-3 max-w-2xl text-lg text-muted">{lead}</p>
+        <p className="mt-3 max-w-2xl text-lg text-on-brand/90">{lead}</p>
       </Container>
     </section>
   );
 }
 
-export function DemoNote({ children }: { children: ReactNode }) {
+/** A calm information box (e.g. the concept-site notice). Renders nothing when the text is empty. */
+export function Notice({ children }: { children: ReactNode }) {
+  if (!children) return null;
   return (
     <p className="flex gap-2 rounded-xl border border-info-line bg-info-bg px-4 py-3 text-sm text-info-fg">
-      <span aria-hidden="true">ℹ️</span>
+      <Icon name="info" className="mt-0.5 size-4 shrink-0" />
       <span>{children}</span>
     </p>
   );
 }
-

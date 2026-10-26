@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { pageBanners } from "@/config/clinic";
 import { Icon } from "@/components/Icons";
 import { ButtonLink, Container, DoctorAvatar, PageIntro, hoursLabel, workingDays } from "@/components/ui";
 import { doctors } from "@/data/doctors";
@@ -12,6 +13,7 @@ export default function DoctorsPage() {
   return (
     <>
       <PageIntro
+        photo={pageBanners.doctors}
         eyebrow="Our doctors"
         title="Meet the team"
         lead="See each doctor's speciality and consultation days, then book a time that works for you."

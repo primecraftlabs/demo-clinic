@@ -3,9 +3,11 @@ import brand from "./brand.json";
 
 export const studio = {
   name: brand.name,
-  ownerFirstName: brand.owner.firstName,
   portfolioUrl: brand.urls.portfolio,
-  whatsappUrl: `${brand.whatsappUrl}?text=${encodeURIComponent(
-    `Hi ${brand.name}, I saw your clinic booking demo and want this for my clinic.`,
+  /** Plain chat link (callers add ?text=...). */
+  whatsappChatUrl: brand.whatsappUrl,
+  /** "Want this for your clinic?" enquiry to the studio. */
+  enquiryUrl: `${brand.whatsappUrl}?text=${encodeURIComponent(
+    `Hi ${brand.name}, I saw your clinic booking website concept and want online booking for my clinic.`,
   )}`,
 };

@@ -6,6 +6,8 @@ const nextConfig: NextConfig = {
   output: "export",
   trailingSlash: true,
   basePath: brand.projects.demoClinic.path.replace(/\/$/, ""),
+  // Photos are served straight from images.unsplash.com (Unsplash hotlinking rule), sized by URL params.
+  images: { unoptimized: true },
   turbopack: {
     rules: {
       "*.css": {

@@ -1,4 +1,4 @@
-// Pure booking logic (no imports, no browser APIs) so it can be unit-tested with plain Node.
+// Pure booking logic (no imports, no browser or Firebase APIs) so it can be unit-tested with plain Node.
 
 export type Doctor = {
   id: string;
@@ -17,25 +17,27 @@ export type Doctor = {
 
 export type BookingStatus = "booked" | "completed" | "cancelled";
 
+/** A booking as the app sees it (whatever store it came from). */
 export type Booking = {
   id: string;
+  code: string;
   doctorId: string;
-  date: string; // YYYY-MM-DD (local)
+  date: string; // YYYY-MM-DD (clinic local time)
   time: string; // HH:MM
   name: string;
   phone: string;
   reason: string;
   status: BookingStatus;
-  createdAt: string;
-  sample?: boolean;
 };
 
 export type SlotState = "free" | "taken" | "past";
 
 export type BookingRules = {
+  /** How many days ahead (including today) patients can book */
   daysAhead: number;
-  prebookedEvery: number;
-  idPrefix: string;
+  /** Prefix of booking codes, e.g. KFC-261027-AB3D */
+  codePrefix: string;
+  maxNameLength: number;
   maxReasonLength: number;
 };
 
@@ -58,11 +60,16 @@ export function nextDays(from: Date, count: number): Date[] {
   return Array.from({ length: count }, (_, i) => new Date(from.getFullYear(), from.getMonth(), from.getDate() + i));
 }
 
+export function addDays(key: string, days: number): string {
+  const d = parseDateKey(key);
+  return dateKey(new Date(d.getFullYear(), d.getMonth(), d.getDate() + days));
+}
+
 export function worksOn(doctor: Doctor, day: Date): boolean {
   return doctor.days.includes(day.getDay());
 }
 
-function toMinutes(time: string): number {
+export function toMinutes(time: string): number {
   const [h, m] = time.split(":").map(Number);
   return h * 60 + m;
 }
@@ -80,35 +87,18 @@ export function slotTimes(doctor: Doctor): string[] {
   return times;
 }
 
-/** Deterministic "already booked by other patients" slots, so the demo looks like a real, busy clinic. */
-export function isPrebooked(doctorId: string, date: string, time: string, every: number): boolean {
-  let hash = 0;
-  for (const ch of `${doctorId}|${date}|${time}`) hash = (hash * 31 + ch.charCodeAt(0)) >>> 0;
-  return every > 0 && hash % every === 0;
-}
-
-export function slotState(
-  doctor: Doctor,
-  date: string,
-  time: string,
-  bookings: Booking[],
-  now: Date,
-  rules: BookingRules,
-): SlotState {
+/** `taken` = start times already booked for this doctor on this date. */
+export function slotState(date: string, time: string, taken: readonly string[], now: Date): SlotState {
   const day = parseDateKey(date);
   const [h, m] = time.split(":").map(Number);
   const start = new Date(day.getFullYear(), day.getMonth(), day.getDate(), h, m);
   if (start.getTime() <= now.getTime()) return "past";
-  if (isPrebooked(doctor.id, date, time, rules.prebookedEvery)) return "taken";
-  const clash = bookings.some(
-    (b) => b.doctorId === doctor.id && b.date === date && b.time === time && b.status !== "cancelled",
-  );
-  return clash ? "taken" : "free";
+  return taken.includes(time) ? "taken" : "free";
 }
 
-export function availableSlots(doctor: Doctor, date: string, bookings: Booking[], now: Date, rules: BookingRules) {
+export function availableSlots(doctor: Doctor, date: string, taken: readonly string[], now: Date) {
   if (!worksOn(doctor, parseDateKey(date))) return [];
-  return slotTimes(doctor).map((time) => ({ time, state: slotState(doctor, date, time, bookings, now, rules) }));
+  return slotTimes(doctor).map((time) => ({ time, state: slotState(date, time, taken, now) }));
 }
 
 /** 10-digit Indian mobile number, accepting spaces, dashes and a +91 / 0 prefix. */
@@ -131,7 +121,7 @@ export type BookingInput = {
 
 export type BookingErrors = Partial<Record<"doctor" | "date" | "time" | "name" | "phone" | "reason", string>>;
 
-export function validateBooking(input: BookingInput, bookings: Booking[], now: Date, rules: BookingRules): BookingErrors {
+export function validateBooking(input: BookingInput, taken: readonly string[], now: Date, rules: BookingRules): BookingErrors {
   const errors: BookingErrors = {};
   const { doctor, date, time } = input;
   if (!doctor) errors.doctor = "Please choose a doctor.";
@@ -142,12 +132,12 @@ export function validateBooking(input: BookingInput, bookings: Booking[], now: D
     else if (doctor && !worksOn(doctor, parseDateKey(date))) errors.date = `${doctor.name} is not available on this day.`;
   }
   if (!time) errors.time = "Please choose a time slot.";
-  else if (doctor && date && !errors.date && slotState(doctor, date, time, bookings, now, rules) !== "free") {
+  else if (doctor && date && !errors.date && slotState(date, time, taken, now) !== "free") {
     errors.time = "This time slot is no longer available. Please choose another.";
   }
   const name = input.name.trim();
   if (name.length < 2) errors.name = "Please enter the patient's full name.";
-  else if (name.length > 60) errors.name = "Name is too long.";
+  else if (name.length > rules.maxNameLength) errors.name = "Name is too long.";
   if (!normalizePhone(input.phone)) errors.phone = "Please enter a valid 10-digit mobile number.";
   if (input.reason.trim().length > rules.maxReasonLength) {
     errors.reason = `Please keep the reason under ${rules.maxReasonLength} characters.`;
@@ -155,7 +145,8 @@ export function validateBooking(input: BookingInput, bookings: Booking[], now: D
   return errors;
 }
 
-export function makeBookingId(date: string, prefix: string, random: () => number = Math.random): string {
+/** Short code the patient can quote, e.g. KFC-261027-AB3D (no 0/O/1/I to avoid mix-ups). */
+export function makeBookingCode(date: string, prefix: string, random: () => number = Math.random): string {
   const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
   const suffix = Array.from({ length: 4 }, () => alphabet[Math.floor(random() * alphabet.length)]).join("");
   return `${prefix}-${date.replaceAll("-", "").slice(2)}-${suffix}`;
@@ -175,6 +166,6 @@ export function formatDate(date: string, style: "short" | "long" = "long"): stri
   });
 }
 
-export function sortBookings(bookings: Booking[]): Booking[] {
+export function sortBookings(bookings: readonly Booking[]): Booking[] {
   return [...bookings].sort((a, b) => (a.date + a.time).localeCompare(b.date + b.time));
 }

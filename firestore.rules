@@ -1,0 +1,75 @@
+rules_version = '2';
+
+// Kinara Family Clinic booking rules. Shapes match src/lib/records.ts; tested in tests/rules.test.ts.
+//  - slots/{slotId}:       public "taken" markers (doctor, date, time only), so patients see free times
+//  - bookings/{bookingId}: patient details, readable only by staff
+//  - staff/{uid}:          who is staff; added by the owner in the Firebase console, never from the site
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isStaff() {
+      return request.auth != null
+        && exists(/databases/$(database)/documents/staff/$(request.auth.uid));
+    }
+
+    function slotDoc(id) {
+      return /databases/$(database)/documents/slots/$(id);
+    }
+
+    function bookingDoc(id) {
+      return /databases/$(database)/documents/bookings/$(id);
+    }
+
+    function validWhen(d) {
+      return d.doctorId is string && d.doctorId.matches('^[a-z][a-z-]{1,39}$')
+        && d.date is string && d.date.matches('^20[0-9]{2}-[01][0-9]-[0-3][0-9]$')
+        && d.time is string && d.time.matches('^[0-2][0-9]:[0-5][0-9]$');
+    }
+
+    function idFor(d) {
+      return d.doctorId + '_' + d.date + '_' + d.time.replace(':', '');
+    }
+
+    match /staff/{uid} {
+      allow read: if request.auth != null && request.auth.uid == uid;
+      allow write: if false;
+    }
+
+    match /slots/{slotId} {
+      allow read: if true;
+      // Only together with its booking (same batch). A taken slot already exists, so it can't be created again.
+      allow create: if request.resource.data.keys().hasOnly(['doctorId', 'date', 'time', 'bookingId'])
+        && validWhen(request.resource.data)
+        && slotId == idFor(request.resource.data)
+        && request.resource.data.bookingId is string
+        && existsAfter(bookingDoc(request.resource.data.bookingId))
+        && getAfter(bookingDoc(request.resource.data.bookingId)).data.slotId == slotId;
+      // Staff free a slot when they cancel its booking.
+      allow delete: if isStaff();
+      allow update: if false;
+    }
+
+    match /bookings/{bookingId} {
+      allow create: if request.resource.data.keys().hasOnly(
+            ['code', 'slotId', 'doctorId', 'date', 'time', 'name', 'phone', 'reason', 'status', 'createdAt'])
+        && request.resource.data.keys().hasAll(
+            ['code', 'slotId', 'doctorId', 'date', 'time', 'name', 'phone', 'reason', 'status', 'createdAt'])
+        && validWhen(request.resource.data)
+        && request.resource.data.slotId == idFor(request.resource.data)
+        && request.resource.data.code is string && request.resource.data.code.matches('^[A-Z]{2,5}-[0-9]{6}-[A-Z0-9]{4}$')
+        && request.resource.data.name is string && request.resource.data.name.size() >= 2 && request.resource.data.name.size() <= 60
+        && request.resource.data.phone is string && request.resource.data.phone.matches('^[6-9][0-9]{9}$')
+        && request.resource.data.reason is string && request.resource.data.reason.size() <= 200
+        && request.resource.data.status == 'booked'
+        && request.resource.data.createdAt == request.time
+        // the slot must be free now and claimed for this booking in the same batch
+        && !exists(slotDoc(request.resource.data.slotId))
+        && existsAfter(slotDoc(request.resource.data.slotId))
+        && getAfter(slotDoc(request.resource.data.slotId)).data.bookingId == bookingId;
+      allow read, delete: if isStaff();
+      allow update: if isStaff()
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status'])
+        && request.resource.data.status in ['booked', 'completed', 'cancelled'];
+    }
+  }
+}

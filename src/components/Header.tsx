@@ -4,26 +4,14 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
 import { clinic } from "@/config/clinic";
-import { studio } from "@/config/studio";
 import { ClinicMark, Icon } from "./Icons";
 import { Container } from "./ui";
 
 const nav = [
   { href: "/", label: "Home" },
   { href: "/doctors/", label: "Doctors" },
-  { href: "/dashboard/", label: "Clinic dashboard" },
+  { href: "/#visit", label: "Timings & location" },
 ];
-
-export function DemoBanner() {
-  return (
-    <div className="bg-fg px-4 py-2 text-center text-xs text-on-brand sm:text-sm">
-      <a href={studio.portfolioUrl} className="font-semibold underline underline-offset-2">
-        Demo website by {studio.name}
-      </a>{" "}
-      — this clinic and its doctors are fictional.
-    </div>
-  );
-}
 
 export function Header() {
   const pathname = usePathname();

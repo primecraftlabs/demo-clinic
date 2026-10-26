@@ -1,7 +1,8 @@
 import type { Metadata } from "next";
 import { DM_Sans } from "next/font/google";
 import { Footer } from "@/components/Footer";
-import { DemoBanner, Header } from "@/components/Header";
+import { Header } from "@/components/Header";
+import { MobileBookBar } from "@/components/MobileBookBar";
 import { clinic } from "@/config/clinic";
 import { studio } from "@/config/studio";
 import "./globals.css";
@@ -13,11 +14,11 @@ const dmSans = DM_Sans({
 
 export const metadata: Metadata = {
   title: {
-    default: `${clinic.name} – Book an appointment online (Demo)`,
-    template: `%s | ${clinic.name} (Demo)`,
+    default: `${clinic.name} – Book an appointment online`,
+    template: `%s | ${clinic.name}`,
   },
-  description: `A demo clinic website with online appointment booking, built by ${studio.name}. The clinic and doctors are fictional.`,
-  robots: { index: false },
+  description: `${clinic.tagline} A concept clinic website with live online booking by ${studio.name}.`,
+  robots: { index: false }, // concept site: keep it out of search results
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
@@ -30,12 +31,12 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
         >
           Skip to content
         </a>
-        <DemoBanner />
         <Header />
         <main id="main" className="flex-1">
           {children}
         </main>
         <Footer />
+        <MobileBookBar />
       </body>
     </html>
   );

@@ -2,19 +2,20 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
-  type Booking,
   type BookingRules,
   type Doctor,
   availableSlots,
   dateKey,
   formatTime,
-  makeBookingId,
+  makeBookingCode,
   nextDays,
   normalizePhone,
   slotState,
   slotTimes,
   validateBooking,
 } from "../src/lib/booking.ts";
+import { bookingRecords, slotId } from "../src/lib/records.ts";
+import { googleCalendarUrl, icsFile } from "../src/lib/calendar.ts";
 
 const doctor: Doctor = {
   id: "test-doc",
@@ -29,23 +30,10 @@ const doctor: Doctor = {
   about: "",
 };
 
-const rules: BookingRules = { daysAhead: 7, prebookedEvery: 4, idPrefix: "KFC", maxReasonLength: 200 };
+const rules: BookingRules = { daysAhead: 7, codePrefix: "KFC", maxNameLength: 60, maxReasonLength: 200 };
 
 // Monday 2026-10-26, 09:00 local time
 const now = new Date(2026, 9, 26, 9, 0);
-
-const booking = (over: Partial<Booking> = {}): Booking => ({
-  id: "X",
-  doctorId: doctor.id,
-  date: "2026-10-26",
-  time: "10:00",
-  name: "A",
-  phone: "",
-  reason: "",
-  status: "booked",
-  createdAt: "",
-  ...over,
-});
 
 test("slot times respect hours and length", () => {
   assert.deepEqual(slotTimes(doctor), ["10:00", "10:20", "10:40"]);
@@ -59,21 +47,17 @@ test("next 7 days start today", () => {
 });
 
 test("no slots on days the doctor does not work", () => {
-  assert.deepEqual(availableSlots(doctor, "2026-11-01", [], now, rules), []); // Sunday
+  assert.deepEqual(availableSlots(doctor, "2026-11-01", [], now), []); // Sunday
 });
 
 test("past slots are unavailable", () => {
   const later = new Date(2026, 9, 26, 10, 30);
-  assert.equal(slotState(doctor, "2026-10-26", "10:20", [], later, rules), "past");
+  assert.equal(slotState("2026-10-26", "10:20", [], later), "past");
 });
 
-test("a booked slot is taken, a cancelled one is free again", () => {
-  const free = availableSlots(doctor, "2026-10-27", [], now, rules).find((s) => s.state === "free");
-  assert.ok(free, "expected at least one free slot");
-  const taken = [booking({ date: "2026-10-27", time: free.time })];
-  assert.equal(slotState(doctor, "2026-10-27", free.time, taken, now, rules), "taken");
-  const cancelled = [booking({ date: "2026-10-27", time: free.time, status: "cancelled" })];
-  assert.equal(slotState(doctor, "2026-10-27", free.time, cancelled, now, rules), "free");
+test("taken times are shown as taken, the rest free", () => {
+  const slots = availableSlots(doctor, "2026-10-27", ["10:20"], now);
+  assert.deepEqual(slots.map((s) => s.state), ["free", "taken", "free"]);
 });
 
 test("phone numbers are normalised", () => {
@@ -89,32 +73,40 @@ test("validation reports every missing field", () => {
   assert.deepEqual(Object.keys(errors).sort(), ["date", "doctor", "name", "phone", "time"]);
 });
 
-test("validation accepts a correct booking and rejects a double booking", () => {
-  const free = availableSlots(doctor, "2026-10-27", [], now, rules).find((s) => s.state === "free")!;
-  const input = { doctor, date: "2026-10-27", time: free.time, name: "Riya Sharma", phone: "9876543210", reason: "" };
+test("validation accepts a correct booking and rejects a taken slot", () => {
+  const input = { doctor, date: "2026-10-27", time: "10:20", name: "Riya Sharma", phone: "9876543210", reason: "" };
   assert.deepEqual(validateBooking(input, [], now, rules), {});
-  const errors = validateBooking(input, [booking({ date: "2026-10-27", time: free.time })], now, rules);
-  assert.ok(errors.time);
+  assert.ok(validateBooking(input, ["10:20"], now, rules).time);
 });
 
 test("dates outside the next 7 days are rejected", () => {
-  const errors = validateBooking(
-    { doctor, date: "2026-11-10", time: "10:00", name: "Riya", phone: "9876543210", reason: "" },
-    [],
-    now,
-    rules,
-  );
+  const errors = validateBooking({ doctor, date: "2026-11-10", time: "10:00", name: "Riya", phone: "9876543210", reason: "" }, [], now, rules);
   assert.ok(errors.date);
 });
 
-test("booking ids and time formatting", () => {
-  assert.match(makeBookingId("2026-10-27", "KFC", () => 0), /^KFC-261027-AAAA$/);
+test("booking codes and time formatting", () => {
+  assert.match(makeBookingCode("2026-10-27", "KFC", () => 0), /^KFC-261027-AAAA$/);
   assert.equal(formatTime("16:20"), "4:20 PM");
   assert.equal(formatTime("00:05"), "12:05 AM");
   assert.equal(formatTime("12:00"), "12:00 PM");
 });
 
-test("pre-booked slots can be turned off", () => {
-  const none = availableSlots(doctor, "2026-10-27", [], now, { ...rules, prebookedEvery: 0 });
-  assert.ok(none.every((s) => s.state === "free"));
+test("database records: one slot id per doctor/date/time, trimmed patient data", () => {
+  assert.equal(slotId("test-doc", "2026-10-27", "10:20"), "test-doc_2026-10-27_1020");
+  const r = bookingRecords({ doctorId: "test-doc", date: "2026-10-27", time: "10:20", name: "  Riya ", phone: "9876543210", reason: " Fever " }, "b1", "KFC-261027-AAAA");
+  assert.equal(r.slot.bookingId, "b1");
+  assert.equal(r.booking.slotId, r.slotId);
+  assert.equal(r.booking.name, "Riya");
+  assert.equal(r.booking.reason, "Fever");
+  assert.equal(r.booking.status, "booked");
+});
+
+test("calendar links use the clinic's time zone and the slot length", () => {
+  const event = { title: "Visit", details: "Code, ok; bring reports", location: "Clinic", date: "2026-10-27", time: "23:50", minutes: 20, timeZone: "Asia/Kolkata", uid: "b1@x" };
+  const url = new URL(googleCalendarUrl("https://calendar.google.com/calendar/render", event));
+  assert.equal(url.searchParams.get("dates"), "20261027T235000/20261028T001000");
+  assert.equal(url.searchParams.get("ctz"), "Asia/Kolkata");
+  const ics = icsFile(event, new Date(Date.UTC(2026, 9, 26)));
+  assert.match(ics, /DTSTART;TZID=Asia\/Kolkata:20261027T235000/);
+  assert.ok(ics.includes("DESCRIPTION:Code\\, ok\\; bring reports"), "commas and semicolons are escaped");
 });

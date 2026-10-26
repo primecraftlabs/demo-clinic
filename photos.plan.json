@@ -1,0 +1,12 @@
+{
+  "hero": { "query": "clinic reception", "orientation": "landscape" },
+  "consult": { "query": "empty doctor office", "orientation": "portrait" },
+  "waiting": { "query": "modern waiting room chairs", "orientation": "landscape" },
+  "equipment": { "query": "stethoscope", "orientation": "landscape" },
+  "dental": { "query": "dental clinic chair", "orientation": "landscape" },
+  "kids": { "query": "teddy bear stethoscope", "orientation": "landscape" },
+  "about": { "query": "medical clipboard stethoscope", "orientation": "landscape" },
+  "visit": { "query": "clinic building entrance", "orientation": "landscape" },
+  "doctors-banner": { "query": "medical clinic hallway bright", "orientation": "landscape" },
+  "book-banner": { "query": "appointment calendar desk", "orientation": "landscape" }
+}

@@ -1,8 +1,9 @@
 "use client";
 
-import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { useEffect, useRef, useState, useSyncExternalStore, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
+import { bookingRules, calendar, clinic, concept } from "@/config/clinic";
+import { doctors, getDoctor } from "@/data/doctors";
 import {
   type Booking,
   type BookingErrors,
@@ -10,25 +11,18 @@ import {
   dateKey,
   formatDate,
   formatTime,
-  makeBookingId,
+  makeBookingCode,
   nextDays,
   normalizePhone,
   validateBooking,
   worksOn,
 } from "@/lib/booking";
-import { bookingRules, clinic, demoStorageNote } from "@/config/clinic";
-import { doctors, getDoctor } from "@/data/doctors";
-import {
-  getBookingsSnapshot,
-  getNowSnapshot,
-  getServerBookings,
-  getServerNow,
-  saveBookings,
-  subscribeBookings,
-  subscribeNow,
-} from "@/lib/storage";
+import { googleCalendarUrl, icsFile, type CalendarEvent } from "@/lib/calendar";
+import { bookingWhatsappText } from "@/lib/messages";
+import { type BookingStore, SlotTakenError, liveBookingStore, notifier, onlineBookingAvailable } from "@/services";
+import { useNow } from "./hooks";
 import { Icon } from "./Icons";
-import { DemoNote, DoctorAvatar, hoursLabel } from "./ui";
+import { DoctorAvatar, Notice, hoursLabel } from "./ui";
 
 const chip =
   "block cursor-pointer rounded-xl border border-line bg-surface px-3 py-2.5 text-center font-medium transition hover:border-brand peer-checked:border-brand peer-checked:bg-brand peer-checked:text-on-brand peer-focus-visible:outline-3 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-brand peer-disabled:cursor-not-allowed peer-disabled:border-line peer-disabled:bg-bg-alt peer-disabled:text-muted/60 peer-disabled:line-through";
@@ -51,10 +45,20 @@ function FieldError({ id, message }: { id: string; message?: string }) {
   );
 }
 
+type Taken = { key: string; times: string[] } | null;
+
 export function BookingFlow() {
+  if (!onlineBookingAvailable) {
+    return <Notice>Online booking is being set up. Please message us on WhatsApp to book in the meantime.</Notice>;
+  }
+  return <BookingForm />;
+}
+
+function BookingForm() {
   const searchParams = useSearchParams();
-  const bookings = useSyncExternalStore(subscribeBookings, getBookingsSnapshot, getServerBookings);
-  const now = useSyncExternalStore(subscribeNow, getNowSnapshot, getServerNow);
+  const now = useNow();
+  const storeRef = useRef<Promise<BookingStore> | null>(null);
+  const getStore = () => (storeRef.current ??= liveBookingStore());
 
   const [doctorId, setDoctorId] = useState(() => getDoctor(searchParams.get("doctor"))?.id ?? "");
   const [date, setDate] = useState("");
@@ -62,47 +66,73 @@ export function BookingFlow() {
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
   const [reason, setReason] = useState("");
+  const [taken, setTaken] = useState<Taken>(null);
   const [errors, setErrors] = useState<BookingErrors>({});
+  const [problem, setProblem] = useState("");
+  const [saving, setSaving] = useState(false);
   const [confirmed, setConfirmed] = useState<Booking | null>(null);
-  const [savedToBrowser, setSavedToBrowser] = useState(true);
-  const confirmRef = useRef<HTMLHeadingElement>(null);
 
   const doctor = getDoctor(doctorId);
   const days = now ? nextDays(now, bookingRules.daysAhead) : [];
-  const slots = doctor && date && now ? availableSlots(doctor, date, bookings, now, bookingRules) : [];
+  const currentKey = `${doctorId}|${date}`;
+  const takenTimes = taken?.key === currentKey ? taken.times : null;
+  const slots = doctor && date && now && takenTimes ? availableSlots(doctor, date, takenTimes, now) : [];
   const freeCount = slots.filter((s) => s.state === "free").length;
 
-  useEffect(() => {
-    if (confirmed) confirmRef.current?.focus();
-  }, [confirmed]);
+  async function loadTaken(forDoctor: string, forDate: string) {
+    if (!forDoctor || !forDate) return;
+    try {
+      const times = await (await getStore()).takenTimes(forDoctor, forDate);
+      setTaken({ key: `${forDoctor}|${forDate}`, times });
+      setProblem("");
+    } catch {
+      setProblem("We couldn't load free times. Please check your internet connection and try again.");
+    }
+  }
 
   function chooseDoctor(id: string) {
     setDoctorId(id);
     const next = getDoctor(id);
-    if (next && date && !worksOn(next, new Date(`${date}T00:00`))) setDate("");
+    const keepDate = next && date && worksOn(next, new Date(`${date}T00:00`)) ? date : "";
+    setDate(keepDate);
     setTime("");
+    void loadTaken(id, keepDate);
   }
 
-  function onSubmit(event: FormEvent) {
+  function chooseDate(key: string) {
+    setDate(key);
+    setTime("");
+    void loadTaken(doctorId, key);
+  }
+
+  async function onSubmit(event: FormEvent) {
     event.preventDefault();
-    const at = new Date();
-    const found = validateBooking({ doctor, date, time, name, phone, reason }, bookings, at, bookingRules);
+    if (saving) return;
+    const found = validateBooking({ doctor, date, time, name, phone, reason }, takenTimes ?? [], new Date(), bookingRules);
     setErrors(found);
+    setProblem("");
     if (Object.keys(found).length > 0 || !doctor) return;
 
-    const booking: Booking = {
-      id: makeBookingId(date, bookingRules.idPrefix),
-      doctorId: doctor.id,
-      date,
-      time,
-      name: name.trim(),
-      phone: normalizePhone(phone) ?? phone,
-      reason: reason.trim(),
-      status: "booked",
-      createdAt: at.toISOString(),
-    };
-    setSavedToBrowser(saveBookings([...bookings, booking]));
-    setConfirmed(booking);
+    setSaving(true);
+    try {
+      const store = await getStore();
+      const booking = await store.create(
+        { doctorId: doctor.id, date, time, name: name.trim(), phone: normalizePhone(phone) ?? phone, reason: reason.trim() },
+        makeBookingCode(date, bookingRules.codePrefix),
+      );
+      notifier.bookingCreated(booking, doctor).catch(() => {}); // the booking is saved either way
+      setConfirmed(booking);
+    } catch (error) {
+      if (error instanceof SlotTakenError) {
+        setErrors({ time: "Sorry, someone just booked this time. Please choose another slot." });
+        setTime("");
+        await loadTaken(doctor.id, date);
+      } else {
+        setProblem("We couldn't save your booking. Please check your internet connection and try again.");
+      }
+    } finally {
+      setSaving(false);
+    }
   }
 
   function bookAnother() {
@@ -113,58 +143,10 @@ export function BookingFlow() {
     setPhone("");
     setReason("");
     setErrors({});
+    setTaken(null);
   }
 
-  if (confirmed) {
-    const d = getDoctor(confirmed.doctorId)!;
-    return (
-      <div role="status" className="mx-auto max-w-2xl rounded-3xl border border-brand/30 bg-surface p-8 shadow-lg">
-        <div className="grid size-14 place-items-center rounded-full bg-brand-soft text-brand">
-          <Icon name="check" className="size-8" />
-        </div>
-        <h2 ref={confirmRef} tabIndex={-1} className="mt-5 text-2xl font-bold outline-none">
-          Appointment confirmed
-        </h2>
-        <p className="mt-2 text-muted">{clinic.arrivalNote}</p>
-        <dl className="mt-6 grid gap-4 rounded-2xl bg-bg-alt p-5 sm:grid-cols-2">
-          <div>
-            <dt className="text-sm text-muted">Booking ID</dt>
-            <dd className="font-mono text-lg font-bold tracking-wide">{confirmed.id}</dd>
-          </div>
-          <div>
-            <dt className="text-sm text-muted">Patient</dt>
-            <dd className="font-semibold">{confirmed.name}</dd>
-          </div>
-          <div>
-            <dt className="text-sm text-muted">Doctor</dt>
-            <dd className="font-semibold">
-              {d.name} · {d.speciality}
-            </dd>
-          </div>
-          <div>
-            <dt className="text-sm text-muted">When</dt>
-            <dd className="font-semibold">
-              {formatDate(confirmed.date)}, {formatTime(confirmed.time)}
-            </dd>
-          </div>
-        </dl>
-        <div className="mt-6">
-          <DemoNote>
-            {demoStorageNote}
-            {!savedToBrowser && " (Your browser blocked storage, so this booking will disappear when you leave the page.)"}
-          </DemoNote>
-        </div>
-        <div className="mt-6 flex flex-wrap gap-3">
-          <Link href="/dashboard/" className="rounded-xl bg-brand px-5 py-3 font-semibold text-on-brand hover:bg-brand-strong">
-            View in clinic dashboard
-          </Link>
-          <button type="button" onClick={bookAnother} className="rounded-xl border border-line px-5 py-3 font-semibold hover:bg-bg-alt">
-            Book another appointment
-          </button>
-        </div>
-      </div>
-    );
-  }
+  if (confirmed) return <Confirmation booking={confirmed} onBookAnother={bookAnother} />;
 
   const errorList = Object.values(errors).filter(Boolean);
 
@@ -181,6 +163,11 @@ export function BookingFlow() {
                 ))}
               </ul>
             </div>
+          )}
+          {problem && (
+            <p className="rounded-xl border border-danger/30 bg-danger-bg p-4 font-medium text-danger" role="alert">
+              {problem}
+            </p>
           )}
         </div>
 
@@ -203,7 +190,7 @@ export function BookingFlow() {
                   className="flex cursor-pointer items-center gap-3 rounded-xl border border-line p-3 transition hover:border-brand peer-checked:border-brand peer-checked:bg-brand-soft peer-checked:ring-2 peer-checked:ring-brand peer-focus-visible:outline-3 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-brand"
                 >
                   <DoctorAvatar doctor={d} index={i} size="size-11 text-base" />
-                  <span>
+                  <span className="min-w-0">
                     <span className="block font-semibold">{d.name}</span>
                     <span className="block text-sm text-muted">
                       {d.speciality} · {hoursLabel(d)}
@@ -238,10 +225,7 @@ export function BookingFlow() {
                       value={key}
                       checked={date === key}
                       disabled={!available}
-                      onChange={() => {
-                        setDate(key);
-                        setTime("");
-                      }}
+                      onChange={() => chooseDate(key)}
                       className="peer sr-only"
                     />
                     <label htmlFor={`date-${key}`} className={chip}>
@@ -267,7 +251,8 @@ export function BookingFlow() {
         >
           <StepTitle n={3}>Choose a time</StepTitle>
           {(!doctor || !date) && <p className="text-sm text-muted">Pick a day to see free time slots.</p>}
-          {doctor && date && (
+          {doctor && date && !takenTimes && <p className="text-sm text-muted">Checking free times…</p>}
+          {doctor && date && takenTimes && (
             <>
               <p className="mb-3 text-sm text-muted" aria-live="polite">
                 {freeCount > 0
@@ -311,6 +296,7 @@ export function BookingFlow() {
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 autoComplete="name"
+                maxLength={bookingRules.maxNameLength}
                 aria-invalid={!!errors.name}
                 aria-describedby={errors.name ? "err-name" : undefined}
                 className="w-full rounded-xl border border-line px-4 py-3 aria-invalid:border-danger"
@@ -330,12 +316,9 @@ export function BookingFlow() {
                 autoComplete="tel"
                 placeholder="10-digit mobile number"
                 aria-invalid={!!errors.phone}
-                aria-describedby={errors.phone ? "err-phone" : "phone-hint"}
+                aria-describedby={errors.phone ? "err-phone" : undefined}
                 className="w-full rounded-xl border border-line px-4 py-3 aria-invalid:border-danger"
               />
-              <p id="phone-hint" className="mt-1.5 text-xs text-muted">
-                In this demo nothing is sent anywhere. Try any 10-digit number starting with 6–9.
-              </p>
               <FieldError id="err-phone" message={errors.phone} />
             </div>
             <div className="sm:col-span-2">
@@ -375,14 +358,97 @@ export function BookingFlow() {
               <dd className="text-right font-semibold">{time ? formatTime(time) : "—"}</dd>
             </div>
           </dl>
-          <button type="submit" className="mt-6 w-full rounded-xl bg-brand px-5 py-3.5 font-semibold text-on-brand hover:bg-brand-strong">
-            Confirm appointment
+          <button
+            type="submit"
+            disabled={saving}
+            className="mt-6 w-full rounded-xl bg-brand px-5 py-3.5 font-semibold text-on-brand hover:bg-brand-strong disabled:opacity-60"
+          >
+            {saving ? "Booking…" : "Confirm appointment"}
           </button>
           <div className="mt-4">
-            <DemoNote>{demoStorageNote}</DemoNote>
+            <Notice>{concept.bookingNotice}</Notice>
           </div>
         </div>
       </aside>
     </form>
+  );
+}
+
+function Confirmation({ booking, onBookAnother }: { booking: Booking; onBookAnother: () => void }) {
+  const titleRef = useRef<HTMLHeadingElement>(null);
+  const d = getDoctor(booking.doctorId)!;
+  useEffect(() => titleRef.current?.focus(), []);
+
+  const event: CalendarEvent = {
+    title: `${d.name} at ${clinic.name}`,
+    details: `Booking ${booking.code}. ${clinic.arrivalNote}`,
+    location: `${clinic.name}, ${clinic.area}`,
+    date: booking.date,
+    time: booking.time,
+    minutes: d.slotMinutes,
+    timeZone: clinic.timeZone,
+    uid: `${booking.id}@${clinic.shortName.toLowerCase()}`,
+  };
+  const whatsapp = `${clinic.whatsappUrl}?text=${encodeURIComponent(bookingWhatsappText(booking, d, clinic.name, concept.whatsappPrefix))}`;
+
+  function downloadIcs() {
+    const url = URL.createObjectURL(new Blob([icsFile(event)], { type: "text/calendar" }));
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `${booking.code}.ics`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  const action = "inline-flex items-center justify-center gap-2 rounded-xl px-5 py-3 font-semibold";
+  return (
+    <div role="status" className="mx-auto max-w-2xl rounded-3xl border border-brand/30 bg-surface p-6 shadow-lg sm:p-8">
+      <div className="grid size-14 place-items-center rounded-full bg-brand-soft text-brand">
+        <Icon name="check" className="size-8" />
+      </div>
+      <h2 ref={titleRef} tabIndex={-1} className="mt-5 text-2xl font-bold outline-none">
+        Appointment confirmed
+      </h2>
+      <p className="mt-2 text-muted">{clinic.arrivalNote}</p>
+      <dl className="mt-6 grid gap-4 rounded-2xl bg-bg-alt p-5 sm:grid-cols-2">
+        <div>
+          <dt className="text-sm text-muted">Booking code</dt>
+          <dd className="font-mono text-lg font-bold tracking-wide">{booking.code}</dd>
+        </div>
+        <div>
+          <dt className="text-sm text-muted">Patient</dt>
+          <dd className="font-semibold break-words">{booking.name}</dd>
+        </div>
+        <div>
+          <dt className="text-sm text-muted">Doctor</dt>
+          <dd className="font-semibold">
+            {d.name} · {d.speciality}
+          </dd>
+        </div>
+        <div>
+          <dt className="text-sm text-muted">When</dt>
+          <dd className="font-semibold">
+            {formatDate(booking.date)}, {formatTime(booking.time)}
+          </dd>
+        </div>
+      </dl>
+      <div className="mt-6 grid gap-3 sm:grid-cols-2">
+        <a href={googleCalendarUrl(calendar.googleUrl, event)} target="_blank" rel="noopener noreferrer" className={`${action} bg-brand text-on-brand hover:bg-brand-strong`}>
+          <Icon name="calendar" /> Add to Google Calendar
+        </a>
+        <button type="button" onClick={downloadIcs} className={`${action} border border-line hover:bg-bg-alt`}>
+          <Icon name="download" /> Calendar file (.ics)
+        </button>
+        <a href={whatsapp} target="_blank" rel="noopener noreferrer" className={`${action} border border-line hover:bg-bg-alt`}>
+          <Icon name="whatsapp" /> Message us on WhatsApp
+        </a>
+        <button type="button" onClick={onBookAnother} className={`${action} border border-line hover:bg-bg-alt`}>
+          Book another appointment
+        </button>
+      </div>
+      <div className="mt-6">
+        <Notice>{concept.bookingNotice}</Notice>
+      </div>
+    </div>
   );
 }

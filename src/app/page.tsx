@@ -1,21 +1,22 @@
 import Link from "next/link";
 import { Icon } from "@/components/Icons";
+import { Photo } from "@/components/Photo";
 import { ButtonLink, Container, DoctorAvatar, SectionTitle, workingDays } from "@/components/ui";
-import { clinic, reasons, services } from "@/config/clinic";
+import { about, clinic, faqs, gallery, howItWorks, reasons, services } from "@/config/clinic";
 import { doctors } from "@/data/doctors";
 
 export default function Home() {
   return (
     <>
-      <section className="relative overflow-hidden bg-linear-to-b from-brand-soft to-bg">
-        <Container className="grid items-center gap-12 py-14 sm:py-20 lg:grid-cols-[1.1fr_0.9fr]">
+      <section className="bg-linear-to-b from-brand-soft to-bg">
+        <Container className="grid items-center gap-10 py-12 sm:py-16 lg:grid-cols-[1.05fr_0.95fr]">
           <div>
             <p className="mb-4 inline-flex items-center gap-2 rounded-full bg-surface px-3 py-1 text-sm font-semibold text-brand shadow-sm">
               <Icon name="pin" className="size-4" /> {clinic.area}
             </p>
             <h1 className="text-4xl font-bold tracking-tight text-balance sm:text-5xl">Book an appointment in 30 seconds</h1>
             <p className="mt-5 max-w-xl text-lg text-muted">
-              Choose your doctor, pick a time that suits you and get instant confirmation. {clinic.tagline}
+              Choose your doctor, pick a free time and get your booking code instantly. {clinic.tagline}
             </p>
             <div className="mt-8 flex flex-wrap gap-3">
               <ButtonLink href="/book/">
@@ -26,38 +27,15 @@ export default function Home() {
               </ButtonLink>
             </div>
             <ul className="mt-8 flex flex-wrap gap-x-6 gap-y-2 text-sm text-muted">
-              {["No phone calls needed", "Only free slots shown", "Instant confirmation"].map((t) => (
+              {["No phone calls needed", "Live free slots", "Instant booking code"].map((t) => (
                 <li key={t} className="flex items-center gap-1.5">
                   <Icon name="check" className="size-4 text-brand" /> {t}
                 </li>
               ))}
             </ul>
           </div>
-
-          <div aria-hidden="true" className="mx-auto w-full max-w-sm rounded-3xl border border-line bg-surface p-6 shadow-xl">
-            <p className="text-sm font-semibold text-muted">Next available</p>
-            <div className="mt-3 flex items-center gap-3">
-              <DoctorAvatar doctor={doctors[0]} />
-              <div>
-                <p className="font-semibold">{doctors[0].name}</p>
-                <p className="text-sm text-muted">{doctors[0].speciality}</p>
-              </div>
-            </div>
-            <div className="mt-5 grid grid-cols-3 gap-2">
-              {["10:00 AM", "10:20 AM", "10:40 AM", "11:00 AM", "11:20 AM", "11:40 AM"].map((t, i) => (
-                <span
-                  key={t}
-                  className={`rounded-lg border py-2 text-center text-sm font-medium ${
-                    i === 1 ? "border-brand bg-brand text-on-brand" : i === 3 ? "border-line text-muted line-through" : "border-line"
-                  }`}
-                >
-                  {t}
-                </span>
-              ))}
-            </div>
-            <p className="mt-5 rounded-xl bg-brand-soft px-4 py-3 text-sm font-semibold text-brand-strong">
-              ✓ Appointment confirmed for 10:20 AM
-            </p>
+          <div className="relative aspect-[4/3] overflow-hidden rounded-3xl shadow-xl">
+            <Photo slot="hero" width={1100} height={825} sizes="(min-width: 1024px) 45vw, 100vw" preload />
           </div>
         </Container>
       </section>
@@ -74,6 +52,68 @@ export default function Home() {
                 <h3 className="font-semibold">{s.title}</h3>
                 <p className="mt-2 text-muted">{s.text}</p>
               </div>
+            ))}
+          </div>
+        </Container>
+      </section>
+
+      <section className="pb-16 sm:pb-20" aria-labelledby="about-title">
+        <Container className="grid items-center gap-10 md:grid-cols-2">
+          <div className="relative aspect-[4/3] overflow-hidden rounded-3xl shadow-lg">
+            <Photo slot="about" width={1000} height={750} sizes="(min-width: 768px) 50vw, 100vw" />
+          </div>
+          <div>
+            <p className="mb-2 text-sm font-semibold tracking-wide text-brand uppercase">{about.eyebrow}</p>
+            <h2 id="about-title" className="text-3xl font-bold tracking-tight text-balance">{about.title}</h2>
+            {about.paragraphs.map((p) => (
+              <p key={p} className="mt-4 text-muted">{p}</p>
+            ))}
+            <ul className="mt-6 space-y-3">
+              {about.points.map((pt) => (
+                <li key={pt.text} className="flex items-center gap-3 font-semibold">
+                  <span className="grid size-9 shrink-0 place-items-center rounded-full bg-brand-soft text-brand">
+                    <Icon name={pt.icon} className="size-5" />
+                  </span>
+                  {pt.text}
+                </li>
+              ))}
+            </ul>
+          </div>
+        </Container>
+      </section>
+
+      <section className="bg-bg-alt py-16 sm:py-20">
+        <Container>
+          <SectionTitle eyebrow="Online booking" title="How booking works" />
+          <ol className="grid gap-5 md:grid-cols-3">
+            {howItWorks.map((s, i) => (
+              <li key={s.title} className="rounded-2xl bg-surface p-6 shadow-sm">
+                <span className="grid size-10 place-items-center rounded-full bg-brand font-bold text-on-brand">{i + 1}</span>
+                <h3 className="mt-4 font-semibold">{s.title}</h3>
+                <p className="mt-1 text-muted">{s.text}</p>
+              </li>
+            ))}
+          </ol>
+          <ButtonLink href="/book/" className="mt-8">
+            <Icon name="calendar" /> Book now
+          </ButtonLink>
+        </Container>
+      </section>
+
+      <section className="py-16 sm:py-20" aria-labelledby="inside-title">
+        <Container>
+          <div className="mb-10 max-w-2xl">
+            <p className="mb-2 text-sm font-semibold tracking-wide text-brand uppercase">Inside the clinic</p>
+            <h2 id="inside-title" className="text-3xl font-bold tracking-tight text-balance">Calm, clean and child-friendly</h2>
+          </div>
+          <div className="grid auto-rows-[10rem] grid-cols-2 gap-3 sm:auto-rows-[13rem] sm:gap-4 md:grid-cols-3">
+            {gallery.map((g, i) => (
+              <figure key={g.slot} className={`relative overflow-hidden rounded-2xl ${i === 0 ? "row-span-2" : ""}`}>
+                <Photo slot={g.slot} width={800} height={i === 0 ? 1000 : 600} sizes="(min-width: 768px) 33vw, 50vw" />
+                <figcaption className="absolute bottom-2 left-2 max-w-[calc(100%-1rem)] rounded-full bg-surface/90 px-3 py-1 text-xs font-semibold sm:text-sm">
+                  {g.label}
+                </figcaption>
+              </figure>
             ))}
           </div>
         </Container>
@@ -110,7 +150,7 @@ export default function Home() {
                 <p className="text-sm text-brand">{d.speciality}</p>
                 <p className="mt-2 flex-1 text-sm text-muted">{workingDays(d)}</p>
                 <Link href={`/book/?doctor=${d.id}`} className="mt-4 text-sm font-semibold text-brand hover:underline">
-                  Book with {d.name.replace("Dr. ", "Dr ")} →
+                  Book with {d.name} →
                 </Link>
               </div>
             ))}
@@ -118,7 +158,26 @@ export default function Home() {
         </Container>
       </section>
 
-      <section className="bg-bg-alt py-16 sm:py-20">
+      <section className="py-16 sm:py-20" aria-labelledby="faq-title">
+        <Container className="max-w-3xl">
+          <p className="mb-2 text-sm font-semibold tracking-wide text-brand uppercase">Questions</p>
+          <h2 id="faq-title" className="text-3xl font-bold tracking-tight">Good to know</h2>
+          <div className="mt-8 divide-y divide-line rounded-2xl border border-line bg-surface">
+            {faqs.map((f) => (
+              <details key={f.q} className="group p-5">
+                <summary className="flex cursor-pointer list-none items-center justify-between gap-4 font-semibold">
+                  {f.q}
+                  <Icon name="arrow" className="size-4 shrink-0 rotate-90 text-brand transition group-open:-rotate-90" />
+                </summary>
+                <p className="mt-3 text-muted">{f.a}</p>
+              </details>
+            ))}
+          </div>
+        </Container>
+      </section>
+
+      <section id="visit" className="relative isolate overflow-hidden bg-brand-strong py-16 sm:py-20">
+        <Photo slot="visit" width={1600} sizes="100vw" className="-z-10 opacity-25" />
         <Container className="grid gap-6 md:grid-cols-2">
           <div className="rounded-2xl bg-surface p-7 shadow-sm">
             <h2 className="flex items-center gap-2 text-xl font-bold">
@@ -126,7 +185,7 @@ export default function Home() {
             </h2>
             <dl className="mt-5 divide-y divide-line">
               {clinic.hours.map((h) => (
-                <div key={h.days} className="flex justify-between gap-4 py-3">
+                <div key={h.days} className="flex flex-wrap justify-between gap-x-4 gap-y-1 py-3">
                   <dt className="text-muted">{h.days}</dt>
                   <dd className="font-semibold">{h.time}</dd>
                 </div>
@@ -140,15 +199,24 @@ export default function Home() {
             </h2>
             <p className="mt-5 text-lg font-semibold">{clinic.area}</p>
             <p className="mt-1 text-muted">{clinic.areaNote}</p>
-            <p className="mt-1 text-muted">Phone: {clinic.phoneMasked} (demo)</p>
-            <a
-              href={clinic.mapsUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="mt-6 inline-flex items-center gap-2 rounded-xl border border-line px-5 py-3 font-semibold hover:bg-bg-alt"
-            >
-              Get directions <Icon name="arrow" className="size-4" />
-            </a>
+            <div className="mt-6 flex flex-wrap gap-3">
+              <a
+                href={clinic.mapsUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-2 rounded-xl border border-line px-5 py-3 font-semibold hover:bg-bg-alt"
+              >
+                Get directions <Icon name="arrow" className="size-4" />
+              </a>
+              <a
+                href={clinic.whatsappUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-2 rounded-xl bg-brand px-5 py-3 font-semibold text-on-brand hover:bg-brand-strong"
+              >
+                <Icon name="whatsapp" /> WhatsApp us
+              </a>
+            </div>
           </div>
         </Container>
       </section>

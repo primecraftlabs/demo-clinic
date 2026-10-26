@@ -7,20 +7,24 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "test": "node --test tests/booking.test.ts"
+    "test": "node --test tests/booking.test.ts",
+    "test:rules": "firebase emulators:exec --only firestore --project demo-kinara \"node --test tests/rules.test.ts\""
   },
   "dependencies": {
+    "firebase": "^12.19.0",
     "next": "16.4.3",
     "react": "19.3.0",
     "react-dom": "19.3.0"
   },
   "devDependencies": {
+    "@firebase/rules-unit-testing": "^5.0.2",
     "@tailwindcss/turbopack": "^4",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "eslint": "^9",
     "eslint-config-next": "16.4.3",
+    "firebase-tools": "^14.27.0",
     "tailwindcss": "^4",
     "typescript": "^5"
   }
