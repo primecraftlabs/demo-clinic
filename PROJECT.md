@@ -2,12 +2,12 @@
 
 - **Type:** Concept project (our own showcase, built like a client product)
 - **Owner:** Jitender (PrimeCraft Labs)
-- **Status:** v2 built and tested locally 2026-10-27 (not pushed). v1 committed locally too.
+- **Status:** DONE / closed 2026-10-27 - live with v1 (booking app), v2 (doctor accounts), v3 (real-clinic essentials).
 - **Showable:** yes (label it "Concept project", never a real clinic)
 - **Stack:** Next.js 16 static export + Tailwind 4 + TypeScript; Firebase free Spark plan (Firestore + Auth);
   DiceBear "Notionists" avatars (CC0); Unsplash photos; Formspree email alerts. **₹0.**
-- **Live link (after push):** https://primecraftlabs.github.io/kinara-family-clinic/ (GitHub repo to be renamed
-  `demo-clinic` -> `kinara-family-clinic` right before the push; local folder keeps `demo-clinic`)
+- **Live link:** https://primecraftlabs.github.io/kinara-family-clinic/ (GitHub repo `kinara-family-clinic`;
+  local folder keeps `demo-clinic`)
 
 ## What it does
 - **Patients:** home (photos, services, story, how booking works, gallery, doctors, FAQ, visit), doctors page,
@@ -18,6 +18,10 @@
   doctor's login (Firebase emails them a "set your password" link), remove access, "Add the starter doctors".
 - **Doctors** (staff role `doctor`): their own appointments only; their profile, avatar and leave days
   (schedule and publishing stay with the admin).
+- **Front desk (v3):** add phone / walk-in bookings (same no-double-booking slots); Check in -> the day's token per
+  doctor (transaction, `queues/{doctor_date}`), Today sorted by token; No-show; one-tap WhatsApp reminder link to
+  the patient (free, staff press Send); clinic-wide holidays in a Clinic settings tab (`settings/clinic`, enforced
+  by the rules); `/privacy/` notice + required consent stored on every booking (India DPDP Act).
 - **Preview for visitors:** `/dashboard/?preview` (`&tab=doctors`) = admin view with sample data, nothing saved.
 - Honest concept labelling: footer line, booking notice, WhatsApp prefix (`concept` in `src/config/clinic.ts`), noindex.
 
@@ -50,14 +54,18 @@ Swap Firebase for another backend = new adapters + `src/services/index.ts`; scre
 ```
 npm install
 npm run dev          # http://localhost:3000/kinara-family-clinic/
-npm test             # 17 unit tests (pure logic)
-npm run test:rules   # 13 security-rule test groups in the Firestore emulator (needs Java; firebase-tools v14 for Java 17)
+npm test             # 21 unit tests (pure logic)
+npm run test:rules   # 19 security-rule test groups in the Firestore emulator (needs Java; firebase-tools v14 for Java 17)
 npm run lint && npm run build
 # from jk/ (Git Bash: prefix MSYS_NO_PATHCONV=1):
-python tools/responsive_check.py --mount /kinara-family-clinic/=projects/demo-clinic/out --routes /kinara-family-clinic/ /kinara-family-clinic/doctors/ /kinara-family-clinic/book/ /kinara-family-clinic/dashboard/ "/kinara-family-clinic/dashboard/?preview" "/kinara-family-clinic/dashboard/?preview&tab=doctors" /kinara-family-clinic/credits/ /kinara-family-clinic/404/
+python tools/responsive_check.py --mount /kinara-family-clinic/=projects/demo-clinic/out --routes /kinara-family-clinic/ /kinara-family-clinic/doctors/ /kinara-family-clinic/book/ /kinara-family-clinic/dashboard/ "/kinara-family-clinic/dashboard/?preview" "/kinara-family-clinic/dashboard/?preview&tab=doctors" /kinara-family-clinic/credits/ /kinara-family-clinic/privacy/ "/kinara-family-clinic/dashboard/?preview&tab=settings" /kinara-family-clinic/404/
 ```
 
 ## Turning it into a real client clinic
 New Firebase project for the client; their details in `src/config/clinic.ts` (`whatsappUrl`, `concept` texts -> "",
 `notifications.endpoint` -> their form), their photos in `photos.plan.json`, remove `robots: noindex`, add their
 owner to `staff` in the console, import or add their doctors from the dashboard.
+
+## Not built (ideas if a real clinic asks)
+Hindi/bilingual pages; spam protection (reCAPTCHA / App Check, free); automatic SMS/WhatsApp reminders (paid APIs
++ a server, i.e. Blaze); multi-clinic SaaS. Best next step is a pilot with one real local clinic.
