@@ -1,6 +1,7 @@
 {
   "_generated": "Do not edit. Change jk/brand/brand.json and run: python jk/brand/sync.py",
   "name": "PrimeCraft Labs",
+  "alternateName": "PrimeCraft",
   "wordmark": {
     "first": "Prime",
     "second": "Craft",
