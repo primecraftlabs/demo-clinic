@@ -23,6 +23,7 @@ import {
 } from "firebase/firestore";
 import type { Doctor } from "../src/lib/booking.ts";
 import { starterDoctors } from "../src/data/doctors.ts";
+import type { BookingSource } from "../src/lib/booking.ts";
 import { bookingRecords, type BookingDraft } from "../src/lib/records.ts";
 
 let env: RulesTestEnvironment;
@@ -32,8 +33,15 @@ const doctorData = (d: Doctor) => Object.fromEntries(Object.entries(d).filter(([
 
 const draft: BookingDraft = { doctorId: ananya.id, date: "2030-01-07", time: "10:20", name: "Test Patient", phone: "9876543210", reason: "Fever" };
 
-function book(db: Firestore, d: BookingDraft = draft, bookingId = "b1", code = "KFC-300107-AB3D", extra: object = {}) {
-  const { slotId, slot, booking } = bookingRecords(d, bookingId, code);
+function book(
+  db: Firestore,
+  d: BookingDraft = draft,
+  bookingId = "b1",
+  code = "KFC-300107-AB3D",
+  extra: object = {},
+  source: BookingSource = "online",
+) {
+  const { slotId, slot, booking } = bookingRecords(d, bookingId, code, source);
   const batch = writeBatch(db);
   batch.set(doc(db, "bookings", bookingId), { ...booking, createdAt: serverTimestamp(), ...extra });
   batch.set(doc(db, "slots", slotId), slot);
@@ -174,5 +182,53 @@ describe("staff", () => {
     await assertSucceeds(getDocs(collection(owner(), "staff")));
     await assertFails(deleteDoc(doc(owner(), "staff/owner-1")));
     await assertSucceeds(deleteDoc(doc(owner(), "staff/doc-rohan")));
+  });
+});
+
+describe("consent, clinic holidays and staff bookings", () => {
+  test("every booking needs the patient's consent", async () => {
+    await assertFails(book(patient(), draft, "b1", "KFC-300107-AB3D", { consent: false }));
+  });
+
+  test("clinic holidays: everyone can read them, only the admin sets them, patients can't book them", async () => {
+    await assertFails(setDoc(doc(drAnanya(), "settings/clinic"), { holidays: ["2030-01-07"] }));
+    await assertSucceeds(setDoc(doc(owner(), "settings/clinic"), { holidays: ["2030-01-07"] }));
+    await assertSucceeds(getDoc(doc(patient(), "settings/clinic")));
+    await assertFails(book(patient()));
+    await assertSucceeds(book(owner(), draft, "b2", "KFC-300107-PHON", {}, "phone")); // staff can still book a patient in
+  });
+
+  test("staff add phone and walk-in bookings; patients and other doctors can't pretend to", async () => {
+    await assertFails(book(patient(), draft, "b1", "KFC-300107-AB3D", {}, "phone"));
+    await assertFails(book(stranger(), draft, "b1", "KFC-300107-AB3D", {}, "walkin"));
+    await assertFails(book(drRohan(), draft, "b1", "KFC-300107-AB3D", {}, "walkin"));
+    await assertSucceeds(book(drAnanya(), draft, "b1", "KFC-300107-AB3D", {}, "walkin"));
+    await assertFails(book(owner(), draft, "b2", "KFC-300107-ZZZZ", {}, "phone")); // still no double booking
+    await assertSucceeds(book(owner(), { ...draft, time: "10:40" }, "b3", "KFC-300107-ZZZY", {}, "phone"));
+  });
+
+  test("staff can book on a doctor's leave day, patients can't", async () => {
+    await assertFails(book(patient(), { ...draft, date: "2030-01-08" }));
+    await assertSucceeds(book(owner(), { ...draft, date: "2030-01-08" }, "b2", "KFC-300108-PHON", {}, "phone"));
+  });
+});
+
+describe("check-in and token queue", () => {
+  test("staff check a patient in with a token; tokens can't be negative", async () => {
+    await book(patient());
+    await assertSucceeds(updateDoc(doc(drAnanya(), "bookings", "b1"), { status: "arrived", token: 3 }));
+    await assertSucceeds(updateDoc(doc(owner(), "bookings", "b1"), { status: "noshow" }));
+    await assertFails(updateDoc(doc(owner(), "bookings", "b1"), { token: -1 }));
+    await assertFails(updateDoc(doc(drRohan(), "bookings", "b1"), { status: "arrived", token: 1 }));
+  });
+
+  test("the day's token counter belongs to that doctor's staff", async () => {
+    const q = { doctorId: ananya.id, date: "2030-01-07", next: 2 };
+    await assertSucceeds(setDoc(doc(drAnanya(), "queues", `${ananya.id}_2030-01-07`), q));
+    await assertSucceeds(getDoc(doc(drAnanya(), "queues", `${ananya.id}_2030-01-07`)));
+    await assertFails(getDoc(doc(drRohan(), "queues", `${ananya.id}_2030-01-07`)));
+    await assertFails(setDoc(doc(drRohan(), "queues", `${ananya.id}_2030-01-07`), { ...q, next: 9 }));
+    await assertFails(setDoc(doc(patient(), "queues", `${ananya.id}_2030-01-08`), { ...q, date: "2030-01-08" }));
+    await assertSucceeds(setDoc(doc(owner(), "queues", `${rohan.id}_2030-01-07`), { doctorId: rohan.id, date: "2030-01-07", next: 1 }));
   });
 });

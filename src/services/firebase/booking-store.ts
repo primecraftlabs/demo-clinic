@@ -6,13 +6,15 @@ import {
   getDocs,
   onSnapshot,
   query,
+  runTransaction,
   serverTimestamp,
   where,
   writeBatch,
   type DocumentData,
 } from "firebase/firestore";
 import { collections } from "@/config/firebase";
-import type { Booking, BookingStatus } from "@/lib/booking";
+import type { Booking, BookingSource, BookingStatus } from "@/lib/booking";
+import { queueId } from "@/lib/queue";
 import { bookingRecords, slotId, type BookingDraft } from "@/lib/records";
 import { SlotTakenError, type BookingStore } from "../types";
 import { db } from "./app";
@@ -28,6 +30,8 @@ function toBooking(id: string, d: DocumentData): Booking {
     phone: d.phone,
     reason: d.reason,
     status: d.status,
+    source: d.source ?? "online",
+    token: d.token ?? 0,
   };
 }
 
@@ -42,9 +46,9 @@ export function firebaseBookingStore(): BookingStore {
       return snap.docs.map((d) => d.data().time as string);
     },
 
-    async create(draft: BookingDraft, code: string) {
+    async create(draft: BookingDraft, code: string, source: BookingSource = "online") {
       const bookingRef = doc(bookingsRef);
-      const { slotId: id, slot, booking } = bookingRecords(draft, bookingRef.id, code);
+      const { slotId: id, slot, booking } = bookingRecords(draft, bookingRef.id, code, source);
       const batch = writeBatch(firestore);
       batch.set(bookingRef, { ...booking, createdAt: serverTimestamp() });
       batch.set(doc(slotsRef, id), slot);
@@ -56,6 +60,18 @@ export function firebaseBookingStore(): BookingStore {
         throw error;
       }
       return { id: bookingRef.id, ...booking };
+    },
+
+    async checkIn(booking: Booking) {
+      const queueRef = doc(firestore, collections.queues, queueId(booking.doctorId, booking.date));
+      // A transaction, so two receptionists checking people in at once never hand out the same token.
+      return runTransaction(firestore, async (tx) => {
+        const queue = await tx.get(queueRef);
+        const token = queue.exists() ? (queue.data().next as number) : 1;
+        tx.set(queueRef, { doctorId: booking.doctorId, date: booking.date, next: token + 1 });
+        tx.update(doc(bookingsRef, booking.id), { status: "arrived", token });
+        return token;
+      });
     },
 
     watch(scope, onChange, onError) {

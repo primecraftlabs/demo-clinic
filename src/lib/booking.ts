@@ -24,7 +24,9 @@ export type Doctor = {
   order: number;
 };
 
-export type BookingStatus = "booked" | "completed" | "cancelled";
+export type BookingStatus = "booked" | "arrived" | "completed" | "noshow" | "cancelled";
+/** How the booking was made: by the patient online, or by staff for a phone call / walk-in. */
+export type BookingSource = "online" | "phone" | "walkin";
 
 /** A booking as the app sees it (whatever store it came from). */
 export type Booking = {
@@ -37,6 +39,9 @@ export type Booking = {
   phone: string;
   reason: string;
   status: BookingStatus;
+  source: BookingSource;
+  /** Queue token for the day, given at check-in (0 = not checked in yet). */
+  token: number;
 };
 
 export type SlotState = "free" | "taken" | "past";
@@ -82,9 +87,10 @@ export function onLeave(doctor: Doctor, date: string): boolean {
   return doctor.leave.includes(date);
 }
 
-/** Bookable = a working weekday and not a leave day. */
-export function isBookable(doctor: Doctor, day: Date): boolean {
-  return worksOn(doctor, day) && !onLeave(doctor, dateKey(day));
+/** Bookable = a working weekday, not the doctor's leave day and not a clinic holiday. */
+export function isBookable(doctor: Doctor, day: Date, holidays: readonly string[] = []): boolean {
+  const key = dateKey(day);
+  return worksOn(doctor, day) && !onLeave(doctor, key) && !holidays.includes(key);
 }
 
 export function toMinutes(time: string): number {
@@ -114,8 +120,8 @@ export function slotState(date: string, time: string, taken: readonly string[], 
   return taken.includes(time) ? "taken" : "free";
 }
 
-export function availableSlots(doctor: Doctor, date: string, taken: readonly string[], now: Date) {
-  if (!isBookable(doctor, parseDateKey(date))) return [];
+export function availableSlots(doctor: Doctor, date: string, taken: readonly string[], now: Date, holidays: readonly string[] = []) {
+  if (!isBookable(doctor, parseDateKey(date), holidays)) return [];
   return slotTimes(doctor).map((time) => ({ time, state: slotState(date, time, taken, now) }));
 }
 
@@ -137,9 +143,15 @@ export type BookingInput = {
   reason: string;
 };
 
-export type BookingErrors = Partial<Record<"doctor" | "date" | "time" | "name" | "phone" | "reason", string>>;
+export type BookingErrors = Partial<Record<"doctor" | "date" | "time" | "name" | "phone" | "reason" | "consent", string>>;
 
-export function validateBooking(input: BookingInput, taken: readonly string[], now: Date, rules: BookingRules): BookingErrors {
+export function validateBooking(
+  input: BookingInput,
+  taken: readonly string[],
+  now: Date,
+  rules: BookingRules,
+  holidays: readonly string[] = [],
+): BookingErrors {
   const errors: BookingErrors = {};
   const { doctor, date, time } = input;
   if (!doctor) errors.doctor = "Please choose a doctor.";
@@ -147,6 +159,7 @@ export function validateBooking(input: BookingInput, taken: readonly string[], n
   else {
     const allowed = nextDays(now, rules.daysAhead).map(dateKey);
     if (!allowed.includes(date)) errors.date = `Please choose a date within the next ${rules.daysAhead} days.`;
+    else if (holidays.includes(date)) errors.date = "The clinic is closed on this day.";
     else if (doctor && onLeave(doctor, date)) errors.date = `${doctor.name} is on leave on this day.`;
     else if (doctor && !worksOn(doctor, parseDateKey(date))) errors.date = `${doctor.name} is not available on this day.`;
   }

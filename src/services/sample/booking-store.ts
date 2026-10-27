@@ -24,6 +24,8 @@ function seed(now: Date): Booking[] {
         phone: samplePhone,
         reason: patient.reason,
         status: "booked",
+        source: p % 3 === 1 ? "phone" : "online",
+        token: 0,
       });
       p++;
     }
@@ -40,8 +42,8 @@ export function sampleBookingStore(now: Date): BookingStore {
     async takenTimes(doctorId, date) {
       return bookings.filter((b) => b.doctorId === doctorId && b.date === date && b.status !== "cancelled").map((b) => b.time);
     },
-    async create(draft, code) {
-      const booking: Booking = { id: `sample-${bookings.length}`, code, ...draft, status: "booked" };
+    async create(draft, code, source = "online") {
+      const booking: Booking = { id: `sample-${bookings.length}`, code, ...draft, status: "booked", source, token: 0 };
       bookings = [...bookings, booking];
       emit();
       return booking;
@@ -51,6 +53,13 @@ export function sampleBookingStore(now: Date): BookingStore {
       listeners.add(listener);
       listener(bookings);
       return () => listeners.delete(listener);
+    },
+    async checkIn(booking) {
+      const sameDay = bookings.filter((b) => b.doctorId === booking.doctorId && b.date === booking.date);
+      const token = Math.max(0, ...sameDay.map((b) => b.token)) + 1;
+      bookings = bookings.map((b) => (b.id === booking.id ? { ...b, status: "arrived", token } : b));
+      emit();
+      return token;
     },
     async setStatus(booking, status) {
       bookings = bookings.map((b) => (b.id === booking.id ? { ...b, status } : b));

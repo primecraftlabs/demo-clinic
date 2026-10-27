@@ -8,6 +8,7 @@ import {
   type BookingStore,
   type DoctorStore,
   type LiveServices,
+  type SettingsStore,
   type StaffAuth,
   type StaffUser,
   type TeamAdmin,
@@ -15,6 +16,7 @@ import {
   onlineBookingAvailable,
   previewServices,
 } from "@/services";
+import { ClinicSettings } from "./ClinicSettings";
 import { Dashboard } from "./Dashboard";
 import { DoctorsAdmin } from "./DoctorsAdmin";
 import { useNow } from "./hooks";
@@ -22,13 +24,19 @@ import { Icon } from "./Icons";
 import { ProfileEditor } from "./ProfileEditor";
 import { DoctorAvatar, Notice, hoursLabel, workingDays } from "./ui";
 
-type AdminTab = "appointments" | "doctors";
+const adminTabs = ["appointments", "doctors", "settings"] as const;
+type AdminTab = (typeof adminTabs)[number];
+
+function isAdminTab(value: string | null): value is AdminTab {
+  return adminTabs.some((t) => t === value);
+}
 
 /** /dashboard/: staff sign in and see the view for their role. ?preview = admin view with sample data;
- *  ?tab=doctors opens the doctors tab (handy for links and screenshots). */
+ *  ?tab=doctors / ?tab=settings opens that admin tab (handy for links and screenshots). */
 export function StaffArea() {
   const params = useSearchParams();
-  const tab: AdminTab = params.get("tab") === "doctors" ? "doctors" : "appointments";
+  const requested = params.get("tab");
+  const tab: AdminTab = isAdminTab(requested) ? requested : "appointments";
   if (params.has("preview") || !onlineBookingAvailable) return <Preview tab={tab} />;
   return <LiveArea tab={tab} />;
 }
@@ -62,12 +70,14 @@ function AdminView({
   bookings,
   doctors: doctorStore,
   team,
+  settings,
   preview,
   initialTab,
 }: {
   bookings: BookingStore;
   doctors: DoctorStore;
   team: TeamAdmin;
+  settings: SettingsStore;
   preview: boolean;
   initialTab: AdminTab;
 }) {
@@ -80,15 +90,14 @@ function AdminView({
         tabs={[
           { id: "appointments", label: "Appointments" },
           { id: "doctors", label: `Doctors (${doctors.length})` },
+          { id: "settings", label: "Clinic settings" },
         ]}
         value={tab}
         onChange={setTab}
       />
-      {tab === "appointments" ? (
-        <Dashboard store={bookings} scope={{}} doctors={doctors} cleanUp={!preview} />
-      ) : (
-        <DoctorsAdmin doctors={doctors} store={doctorStore} team={team} preview={preview} />
-      )}
+      {tab === "appointments" && <Dashboard store={bookings} scope={{}} doctors={doctors} cleanUp={!preview} />}
+      {tab === "doctors" && <DoctorsAdmin doctors={doctors} store={doctorStore} team={team} preview={preview} />}
+      {tab === "settings" && <ClinicSettings store={settings} preview={preview} />}
     </div>
   );
 }
@@ -143,7 +152,7 @@ function Preview({ tab }: { tab: AdminTab }) {
         </Link>{" "}
         to see real bookings.
       </Notice>
-      <AdminView bookings={services.bookings} doctors={services.doctors} team={services.team} preview initialTab={tab} />
+      <AdminView bookings={services.bookings} doctors={services.doctors} team={services.team} settings={services.settings} preview initialTab={tab} />
     </div>
   );
 }
@@ -191,7 +200,7 @@ function LiveArea({ tab }: { tab: AdminTab }) {
   if (!user) return <SignIn auth={services.auth} />;
   return (
     <SignedInBar user={user} auth={services.auth}>
-      {user.role === "owner" && <AdminView bookings={services.bookings} doctors={services.doctors} team={services.team} preview={false} initialTab={tab} />}
+      {user.role === "owner" && <AdminView bookings={services.bookings} doctors={services.doctors} team={services.team} settings={services.settings} preview={false} initialTab={tab} />}
       {user.role === "doctor" && user.doctorId && <DoctorView services={services} doctorId={user.doctorId} />}
       {!user.role && <Notice>This account doesn&apos;t have access to the clinic dashboard. Please ask the clinic admin.</Notice>}
     </SignedInBar>

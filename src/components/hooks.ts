@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useSyncExternalStore } from "react";
 import type { Doctor } from "@/lib/booking";
-import { doctorStore } from "@/services";
+import { doctorStore, settingsStore } from "@/services";
 
 // "Now", read once in the browser. The server prerender gets null, so time-based UI renders after hydration.
 let clientNow: Date | null = null;
@@ -36,4 +36,27 @@ export function usePublishedDoctors(): DoctorsState {
     };
   }, []);
   return state;
+}
+
+// Clinic-wide holidays, fetched once per page load (empty list if they can't be loaded).
+let holidaysPromise: Promise<string[]> | null = null;
+
+/** null while loading, then the clinic's holiday dates (YYYY-MM-DD). */
+export function useClinicHolidays(): string[] | null {
+  const [holidays, setHolidays] = useState<string[] | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    holidaysPromise ??= settingsStore()
+      .then((s) => s.get())
+      .then((s) => s.holidays)
+      .catch(() => {
+        holidaysPromise = null;
+        return [];
+      });
+    holidaysPromise.then((h) => !cancelled && setHolidays(h));
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+  return holidays;
 }

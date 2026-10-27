@@ -1,6 +1,6 @@
 // The contracts the UI depends on. Adapters (firebase/, sample/, formspree) implement them;
 // src/services/index.ts is the ONE place that decides which adapter is used.
-import type { Booking, BookingStatus, Doctor } from "@/lib/booking";
+import type { Booking, BookingSource, BookingStatus, Doctor } from "@/lib/booking";
 import type { BookingDraft } from "@/lib/records";
 
 export type Unsubscribe = () => void;
@@ -12,11 +12,13 @@ export type BookingScope = { doctorId?: string };
 export interface BookingStore {
   /** Start times already taken for one doctor on one date. */
   takenTimes(doctorId: string, date: string): Promise<string[]>;
-  /** Saves a booking. Rejects with SlotTakenError if someone else got the slot first. */
-  create(draft: BookingDraft, code: string): Promise<Booking>;
+  /** Saves a booking (patients: "online"; staff: "phone"/"walkin"). Rejects with SlotTakenError if the slot is gone. */
+  create(draft: BookingDraft, code: string, source?: BookingSource): Promise<Booking>;
+  /** Staff: marks the patient as arrived and gives them the next token for that doctor's day. Returns the token. */
+  checkIn(booking: Booking): Promise<number>;
   /** Staff: live list of bookings in scope. */
   watch(scope: BookingScope, onChange: (bookings: Booking[]) => void, onError: OnError): Unsubscribe;
-  /** Staff: completed / cancelled (cancelling frees the slot). */
+  /** Staff: completed / no-show / cancelled (cancelling frees the slot). */
   setStatus(booking: Booking, status: BookingStatus): Promise<void>;
   /** Admin: deletes bookings whose visit date is before `date`. Returns how many were removed. */
   removeBefore(date: string): Promise<number>;
@@ -36,6 +38,16 @@ export interface DoctorStore {
   create(doctor: Doctor): Promise<void>;
   /** Admin: any field. Doctor: only their profile fields (enforced by the rules). */
   update(id: string, patch: Partial<DoctorFields>): Promise<void>;
+}
+
+/** Clinic-wide settings the admin manages. */
+export type ClinicSettings = { holidays: string[] };
+
+export interface SettingsStore {
+  get(): Promise<ClinicSettings>;
+  watch(onChange: (settings: ClinicSettings) => void, onError: OnError): Unsubscribe;
+  /** Admin only. */
+  setHolidays(holidays: string[]): Promise<void>;
 }
 
 export type Role = "owner" | "doctor";

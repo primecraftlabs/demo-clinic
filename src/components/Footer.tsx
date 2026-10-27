@@ -39,6 +39,7 @@ export function Footer() {
             <li><Link href="/book/" className="hover:text-brand">Book an appointment</Link></li>
             <li><Link href="/doctors/" className="hover:text-brand">Our doctors</Link></li>
             <li><Link href="/dashboard/" className="hover:text-brand">Staff login</Link></li>
+            <li><Link href="/privacy/" className="hover:text-brand">Privacy</Link></li>
             <li><Link href="/credits/" className="hover:text-brand">Photo credits</Link></li>
           </ul>
         </div>

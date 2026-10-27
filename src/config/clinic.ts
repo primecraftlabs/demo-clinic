@@ -23,6 +23,8 @@ export const clinic = {
   arrivalNote: "Please arrive 10 minutes early and bring any previous reports.",
   /** Booking dates/times are the clinic's local time. */
   timeZone: "Asia/Kolkata",
+  /** Country code for WhatsApp links to patients' 10-digit mobile numbers. */
+  phoneCountryCode: "91",
   /** WhatsApp chat for patients. On a client site: the clinic's own wa.me link. */
   whatsappUrl: studio.whatsappChatUrl,
 };
@@ -118,4 +120,33 @@ export const photoLabels: Record<string, string> = {
   visit: "Visit us section",
   "doctors-banner": "Doctors page banner",
   "book-banner": "Booking page banner",
+};
+
+/** Privacy notice (India DPDP Act 2023: say what we collect, why, who sees it, how long, and how to ask for deletion). */
+export const privacy = {
+  updated: "27 October 2026",
+  consentText: "I agree to the clinic storing these details to manage this appointment, as described in the privacy notice.",
+  staffConsentText: "The patient agreed to the privacy notice (read it to them on the phone if needed).",
+  sections: [
+    {
+      title: "What we collect",
+      text: "When you book, we collect the patient's name, mobile number, the chosen doctor and time, and the reason for the visit if you give one. We don't ask for medical records online.",
+    },
+    {
+      title: "Why we use it",
+      text: "Only to manage your appointment: to keep the time for you, let the doctor prepare, and contact you about the visit (for example a reminder on WhatsApp).",
+    },
+    {
+      title: "Who can see it",
+      text: "Only clinic staff: the clinic admin sees all appointments, and each doctor sees only their own patients. We never sell or share your details for marketing.",
+    },
+    {
+      title: "How long we keep it",
+      text: `Appointment details are deleted automatically ${retentionDays} days after the visit date.`,
+    },
+    {
+      title: "Your choices",
+      text: "You can ask us to correct or delete your details at any time by messaging us on WhatsApp with your booking code.",
+    },
+  ],
 };

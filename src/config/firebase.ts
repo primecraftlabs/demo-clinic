@@ -15,4 +15,14 @@ export const isFirebaseConfigured = Object.values(firebaseConfig).every(Boolean)
  *  Keep in step with "database" in firebase.json, which the rules deploy uses. */
 export const databaseId = "default";
 
-export const collections = { bookings: "bookings", slots: "slots", staff: "staff", doctors: "doctors" } as const;
+export const collections = {
+  bookings: "bookings",
+  slots: "slots",
+  staff: "staff",
+  doctors: "doctors",
+  queues: "queues",
+  settings: "settings",
+} as const;
+
+/** Document id of the clinic-wide settings (in collections.settings). */
+export const clinicSettingsId = "clinic";

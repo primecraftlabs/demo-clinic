@@ -1,8 +1,9 @@
 "use client";
 
+import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useEffect, useRef, useState, type FormEvent } from "react";
-import { bookingRules, calendar, clinic, concept } from "@/config/clinic";
+import { bookingRules, calendar, clinic, concept, privacy } from "@/config/clinic";
 import {
   type Booking,
   type BookingErrors,
@@ -21,7 +22,7 @@ import {
 import { googleCalendarUrl, icsFile, type CalendarEvent } from "@/lib/calendar";
 import { bookingWhatsappText } from "@/lib/messages";
 import { SlotTakenError, bookingStore, notifier, onlineBookingAvailable } from "@/services";
-import { useNow, usePublishedDoctors } from "./hooks";
+import { useClinicHolidays, useNow, usePublishedDoctors } from "./hooks";
 import { Icon } from "./Icons";
 import { DoctorAvatar, Notice, hoursLabel } from "./ui";
 
@@ -46,6 +47,31 @@ function FieldError({ id, message }: { id: string; message?: string }) {
   );
 }
 
+/** privacy.consentText with its words "privacy notice" linked to /privacy/ (opens a new tab so the form keeps its data). */
+function ConsentText() {
+  const words = "privacy notice";
+  const at = privacy.consentText.toLowerCase().indexOf(words);
+  const link = (text: string) => (
+    <Link href="/privacy/" target="_blank" rel="noopener" className="font-semibold text-brand underline underline-offset-2">
+      {text}
+    </Link>
+  );
+  if (at < 0) {
+    return (
+      <span>
+        {privacy.consentText} ({link(words)})
+      </span>
+    );
+  }
+  return (
+    <span>
+      {privacy.consentText.slice(0, at)}
+      {link(privacy.consentText.slice(at, at + words.length))}
+      {privacy.consentText.slice(at + words.length)}
+    </span>
+  );
+}
+
 type Taken = { key: string; times: string[] } | null;
 
 export function BookingFlow() {
@@ -59,6 +85,8 @@ function BookingForm() {
   const searchParams = useSearchParams();
   const now = useNow();
   const { doctors, failed } = usePublishedDoctors();
+  const loadedHolidays = useClinicHolidays();
+  const holidays = loadedHolidays ?? [];
   const list = doctors ?? [];
   const getDoctor = (id: string) => list.find((d) => d.id === id);
   const getStore = bookingStore;
@@ -69,6 +97,7 @@ function BookingForm() {
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
   const [reason, setReason] = useState("");
+  const [consent, setConsent] = useState(false);
   const [taken, setTaken] = useState<Taken>(null);
   const [errors, setErrors] = useState<BookingErrors>({});
   const [problem, setProblem] = useState("");
@@ -79,7 +108,7 @@ function BookingForm() {
   const days = now ? nextDays(now, bookingRules.daysAhead) : [];
   const currentKey = `${doctorId}|${date}`;
   const takenTimes = taken?.key === currentKey ? taken.times : null;
-  const slots = doctor && date && now && takenTimes ? availableSlots(doctor, date, takenTimes, now) : [];
+  const slots = doctor && date && now && takenTimes ? availableSlots(doctor, date, takenTimes, now, holidays) : [];
   const freeCount = slots.filter((s) => s.state === "free").length;
 
   async function loadTaken(forDoctor: string, forDate: string) {
@@ -96,7 +125,7 @@ function BookingForm() {
   function chooseDoctor(id: string) {
     setDoctorId(id);
     const next = getDoctor(id);
-    const keepDate = next && date && isBookable(next, new Date(`${date}T00:00`)) ? date : "";
+    const keepDate = next && date && isBookable(next, new Date(`${date}T00:00`), holidays) ? date : "";
     setDate(keepDate);
     setTime("");
     void loadTaken(id, keepDate);
@@ -110,8 +139,9 @@ function BookingForm() {
 
   async function onSubmit(event: FormEvent) {
     event.preventDefault();
-    if (saving) return;
-    const found = validateBooking({ doctor, date, time, name, phone, reason }, takenTimes ?? [], new Date(), bookingRules);
+    if (saving || !loadedHolidays) return;
+    const found = validateBooking({ doctor, date, time, name, phone, reason }, takenTimes ?? [], new Date(), bookingRules, holidays);
+    if (!consent) found.consent = "Please agree to the privacy notice to book.";
     setErrors(found);
     setProblem("");
     if (Object.keys(found).length > 0 || !doctor) return;
@@ -145,6 +175,7 @@ function BookingForm() {
     setName("");
     setPhone("");
     setReason("");
+    setConsent(false);
     setErrors({});
     setTaken(null);
   }
@@ -218,13 +249,14 @@ function BookingForm() {
         >
           <StepTitle n={2}>Pick a day</StepTitle>
           {!doctor && <p className="text-sm text-muted">Choose a doctor first to see their available days.</p>}
-          {doctor && !now && <p className="text-sm text-muted">Loading available days…</p>}
-          {doctor && now && (
+          {doctor && (!now || !loadedHolidays) && <p className="text-sm text-muted">Loading available days…</p>}
+          {doctor && now && loadedHolidays && (
             <div className="grid grid-cols-3 gap-2 sm:grid-cols-4 lg:grid-cols-7">
               {days.map((day) => {
                 const key = dateKey(day);
-                const available = isBookable(doctor, day);
-                const leave = onLeave(doctor, key);
+                const available = isBookable(doctor, day, holidays);
+                const closed = holidays.includes(key);
+                const leave = !closed && onLeave(doctor, key);
                 return (
                   <div key={key}>
                     <input
@@ -243,8 +275,11 @@ function BookingForm() {
                       </span>
                       <span className="block text-lg leading-tight font-bold">{day.getDate()}</span>
                       <span className="block text-xs opacity-80">{day.toLocaleDateString("en-IN", { month: "short" })}</span>
+                      {closed && <span className="block text-[10px] font-semibold uppercase">Closed</span>}
                       {leave && <span className="block text-[10px] font-semibold uppercase">Leave</span>}
-                      {!available && <span className="sr-only"> ({leave ? "doctor on leave" : "doctor not available"})</span>}
+                      {!available && (
+                        <span className="sr-only"> ({closed ? "clinic closed" : leave ? "doctor on leave" : "doctor not available"})</span>
+                      )}
                     </label>
                   </div>
                 );
@@ -368,10 +403,28 @@ function BookingForm() {
               <dd className="text-right font-semibold">{time ? formatTime(time) : "—"}</dd>
             </div>
           </dl>
+          <div className="mt-6">
+            <label htmlFor="consent" className="flex cursor-pointer items-start gap-3 text-sm">
+              <input
+                id="consent"
+                type="checkbox"
+                checked={consent}
+                onChange={(e) => {
+                  setConsent(e.target.checked);
+                  if (e.target.checked && errors.consent) setErrors((prev) => ({ ...prev, consent: undefined }));
+                }}
+                aria-invalid={!!errors.consent}
+                aria-describedby={errors.consent ? "err-consent" : undefined}
+                className="mt-0.5 size-5 shrink-0 accent-brand"
+              />
+              <ConsentText />
+            </label>
+            <FieldError id="err-consent" message={errors.consent} />
+          </div>
           <button
             type="submit"
-            disabled={saving}
-            className="mt-6 w-full rounded-xl bg-brand px-5 py-3.5 font-semibold text-on-brand hover:bg-brand-strong disabled:opacity-60"
+            disabled={saving || !loadedHolidays}
+            className="mt-4 w-full rounded-xl bg-brand px-5 py-3.5 font-semibold text-on-brand hover:bg-brand-strong disabled:opacity-60"
           >
             {saving ? "Booking…" : "Confirm appointment"}
           </button>

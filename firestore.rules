@@ -5,7 +5,10 @@ rules_version = '2';
 //                          console), role 'doctor' + doctorId = a doctor (added by the admin from the dashboard)
 //  - doctors/{doctorId}:   public profile + schedule; visible to everyone only when active
 //  - slots/{slotId}:       public "taken" markers (doctor, date, time only), so patients see free times
-//  - bookings/{bookingId}: patient details: the admin sees all, a doctor only their own
+//  - bookings/{bookingId}: patient details: the admin sees all, a doctor only their own. Made online by patients,
+//                          or by staff for phone calls / walk-ins (source). Consent is required either way.
+//  - queues/{doctor_date}: token counter for one doctor's day (staff only)
+//  - settings/clinic:      clinic-wide holidays (public read, admin write)
 service cloud.firestore {
   match /databases/{database}/documents {
 
@@ -13,6 +16,7 @@ service cloud.firestore {
     function doctorDoc(id) { return /databases/$(database)/documents/doctors/$(id); }
     function slotDoc(id) { return /databases/$(database)/documents/slots/$(id); }
     function bookingDoc(id) { return /databases/$(database)/documents/bookings/$(id); }
+    function settingsDoc() { return /databases/$(database)/documents/settings/clinic; }
 
     function isMember() { return request.auth != null && exists(staffDoc(request.auth.uid)); }
     function me() { return get(staffDoc(request.auth.uid)).data; }
@@ -88,31 +92,63 @@ service cloud.firestore {
       allow update: if false;
     }
 
-    match /bookings/{bookingId} {
-      allow create: if request.resource.data.keys().hasOnly(
-            ['code', 'slotId', 'doctorId', 'date', 'time', 'name', 'phone', 'reason', 'status', 'createdAt'])
-        && request.resource.data.keys().hasAll(
-            ['code', 'slotId', 'doctorId', 'date', 'time', 'name', 'phone', 'reason', 'status', 'createdAt'])
-        && validWhen(request.resource.data)
-        && request.resource.data.slotId == idFor(request.resource.data)
-        && request.resource.data.code is string && request.resource.data.code.matches('^[A-Z]{2,5}-[0-9]{6}-[A-Z0-9]{4}$')
-        && request.resource.data.name is string && request.resource.data.name.size() >= 2 && request.resource.data.name.size() <= 60
-        && request.resource.data.phone is string && request.resource.data.phone.matches('^[6-9][0-9]{9}$')
-        && request.resource.data.reason is string && request.resource.data.reason.size() <= 200
-        && request.resource.data.status == 'booked'
-        && request.resource.data.createdAt == request.time
-        // only a published doctor, and not on one of their leave days
-        && get(doctorDoc(request.resource.data.doctorId)).data.active == true
-        && !(request.resource.data.date in get(doctorDoc(request.resource.data.doctorId)).data.leave)
+    function validBooking(d, bookingId) {
+      return d.keys().hasOnly(['code', 'slotId', 'doctorId', 'date', 'time', 'name', 'phone', 'reason', 'status',
+                               'source', 'token', 'consent', 'createdAt'])
+        && d.keys().hasAll(['code', 'slotId', 'doctorId', 'date', 'time', 'name', 'phone', 'reason', 'status',
+                            'source', 'token', 'consent', 'createdAt'])
+        && validWhen(d)
+        && d.slotId == idFor(d)
+        && d.code is string && d.code.matches('^[A-Z]{2,5}-[0-9]{6}-[A-Z0-9]{4}$')
+        && d.name is string && d.name.size() >= 2 && d.name.size() <= 60
+        && d.phone is string && d.phone.matches('^[6-9][0-9]{9}$')
+        && d.reason is string && d.reason.size() <= 200
+        && d.status == 'booked'
+        && d.token == 0
+        && d.consent == true
+        && d.createdAt == request.time
         // the slot must be free now and claimed for this booking in the same batch
-        && !exists(slotDoc(request.resource.data.slotId))
-        && existsAfter(slotDoc(request.resource.data.slotId))
-        && getAfter(slotDoc(request.resource.data.slotId)).data.bookingId == bookingId;
+        && !exists(slotDoc(d.slotId))
+        && existsAfter(slotDoc(d.slotId))
+        && getAfter(slotDoc(d.slotId)).data.bookingId == bookingId;
+    }
+
+    function openForPatients(d) {
+      return get(doctorDoc(d.doctorId)).data.active == true
+        && !(d.date in get(doctorDoc(d.doctorId)).data.leave)
+        && (!exists(settingsDoc()) || !(d.date in get(settingsDoc()).data.holidays));
+    }
+
+    match /bookings/{bookingId} {
+      allow create: if validBooking(request.resource.data, bookingId) && (
+        // patients online: only published doctors, not on leave days or clinic holidays
+        (request.resource.data.source == 'online' && openForPatients(request.resource.data))
+        // staff for a phone call or walk-in (the admin for anyone, a doctor for themselves)
+        || (request.resource.data.source in ['phone', 'walkin']
+            && (isAdmin() || isDoctor(request.resource.data.doctorId))));
       allow read: if isAdmin() || isDoctor(resource.data.doctorId);
       allow update: if (isAdmin() || isDoctor(resource.data.doctorId))
-        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status'])
-        && request.resource.data.status in ['booked', 'completed', 'cancelled'];
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'token'])
+        && request.resource.data.status in ['booked', 'arrived', 'completed', 'noshow', 'cancelled']
+        && request.resource.data.token is int && request.resource.data.token >= 0;
       allow delete: if isAdmin();
+    }
+
+    match /queues/{queueId} {
+      // queueId = doctorId_date; staff of that doctor (or the admin) hand out the day's tokens
+      allow read: if isAdmin() || (isMember() && me().role == 'doctor' && queueId.matches(me().doctorId + '_.*'));
+      allow create, update: if (isAdmin() || isDoctor(request.resource.data.doctorId))
+        && request.resource.data.keys().hasOnly(['doctorId', 'date', 'next'])
+        && queueId == request.resource.data.doctorId + '_' + request.resource.data.date
+        && request.resource.data.next is int && request.resource.data.next >= 1;
+      allow delete: if isAdmin();
+    }
+
+    match /settings/clinic {
+      allow read: if true;
+      allow write: if isAdmin()
+        && request.resource.data.keys().hasOnly(['holidays'])
+        && request.resource.data.holidays is list && request.resource.data.holidays.size() <= 120;
     }
   }
 }

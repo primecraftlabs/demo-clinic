@@ -17,6 +17,8 @@ import {
 import { bookingRecords, slotId } from "../src/lib/records.ts";
 import { cleanLeave, doctorIdFromName, initialsOf, newDoctor, parseLanguages, validateProfile, validateSchedule } from "../src/lib/doctors.ts";
 import { googleCalendarUrl, icsFile } from "../src/lib/calendar.ts";
+import { reminderText, whatsappToPatient } from "../src/lib/messages.ts";
+import { queueOrder } from "../src/lib/queue.ts";
 
 const doctor: Doctor = {
   id: "test-doc",
@@ -150,4 +152,40 @@ test("profile and schedule checks", () => {
 
 test("leave list stays sorted, unique and future-only", () => {
   assert.deepEqual(cleanLeave(["2026-11-05", "2026-10-01", "2026-11-02", "2026-11-05", "bad"], "2026-10-27"), ["2026-11-02", "2026-11-05"]);
+});
+
+test("clinic holidays close the day for every doctor", () => {
+  assert.deepEqual(availableSlots(doctor, "2026-10-27", [], now, ["2026-10-27"]), []);
+  const errors = validateBooking({ doctor, date: "2026-10-27", time: "10:00", name: "Riya", phone: "9876543210", reason: "" }, [], now, rules, ["2026-10-27"]);
+  assert.match(errors.date ?? "", /closed/);
+});
+
+test("online and staff bookings carry their source, an empty token and consent", () => {
+  const draft = { doctorId: "test-doc", date: "2026-10-27", time: "10:20", name: "Riya", phone: "9876543210", reason: "" };
+  assert.equal(bookingRecords(draft, "b1", "KFC-261027-AAAA").booking.source, "online");
+  const staff = bookingRecords(draft, "b2", "KFC-261027-AAAB", "walkin").booking;
+  assert.equal(staff.source, "walkin");
+  assert.equal(staff.token, 0);
+  assert.equal(staff.consent, true);
+});
+
+test("queue: arrived patients by token, then the rest by time", () => {
+  const base = { code: "C", doctorId: "test-doc", date: "2026-10-27", name: "P", phone: "9876543210", reason: "", source: "online" as const };
+  const order = queueOrder([
+    { ...base, id: "a", time: "10:00", status: "booked", token: 0 },
+    { ...base, id: "b", time: "10:40", status: "arrived", token: 2 },
+    { ...base, id: "c", time: "10:20", status: "arrived", token: 1 },
+    { ...base, id: "d", time: "09:40", status: "completed", token: 0 },
+  ]).map((b) => b.id);
+  assert.deepEqual(order, ["c", "b", "a", "d"]);
+});
+
+test("WhatsApp reminder goes to the patient's number with the details filled in", () => {
+  const booking = { id: "b", code: "KFC-261027-AAAA", doctorId: "test-doc", date: "2026-10-27", time: "16:20", name: "Riya", phone: "9876543210", reason: "", status: "booked" as const, source: "online" as const, token: 0 };
+  const text = reminderText(booking, doctor, "Kinara", "Bring reports.");
+  assert.match(text, /Riya/);
+  assert.match(text, /4:20 PM/);
+  const url = whatsappToPatient("9876543210", "91", text);
+  assert.ok(url.startsWith("https://wa.me/919876543210?text="));
+  assert.equal(decodeURIComponent(url.split("text=")[1]), text);
 });
